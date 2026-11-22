@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process'
 const args = process.argv.slice(2)
 const confirmation = args.indexOf('--development-project')
 const declaredProject = confirmation >= 0 ? args[confirmation + 1] : ''
-const match = /^https:\/\/([a-z0-9]{20})\.supabase\.co\/?$/.exec(process.env.VITE_SUPABASE_URL?.trim() ?? '')
+const match = /^https:\/\/([a-z0-9]{20})\.supabase\.co\/?$/.exec(process.env.SUPABASE_URL?.trim() ?? '')
 if (!match) throw new Error('Use the hosted Supabase Project URL in your existing .env.local.')
 const projectRef = match[1]
 if (declaredProject !== projectRef) {

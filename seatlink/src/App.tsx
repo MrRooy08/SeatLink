@@ -118,7 +118,7 @@ export default function App() {
       <section className="session-card">
         <h1>Set up SeatLink</h1>
         <p role="alert">
-          Add a valid <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> to{' '}
+          Add a valid <code>SUPABASE_URL</code> and <code>SUPABASE_PUBLISHABLE_KEY</code> to{' '}
           <code>.env.local</code>, then restart Vite.
         </p>
       </section>
