@@ -14,7 +14,7 @@ it('previews the hosted menu target from the existing environment without connec
   const project = 'abcdefghijklmnopqrst'
   const result = await execute(process.execPath, [
     'scripts/seed-hosted-development.mjs', '--development-project', project, '--dry-run',
-  ], { env: { ...process.env, SUPABASE_URL: `https://${project}.supabase.co` } })
+  ], { env: { ...process.env, VITE_SUPABASE_URL: `https://${project}.supabase.co` } })
   expect(result.stdout).toContain('Hosted development target: ' + project)
   expect(result.stdout).toContain('No database connection or changes were made.')
 })
@@ -22,6 +22,6 @@ it('previews the hosted menu target from the existing environment without connec
 it('rejects a hosted seed when the declared project differs from the configured URL', async () => {
   await expect(execute(process.execPath, [
     'scripts/seed-hosted-development.mjs', '--development-project', 'different-project', '--dry-run',
-  ], { env: { ...process.env, SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co' } }))
+  ], { env: { ...process.env, VITE_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co' } }))
     .rejects.toMatchObject({ code: 1, stderr: expect.stringContaining('intended demo/development target') })
 })
