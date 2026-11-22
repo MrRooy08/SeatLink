@@ -1,0 +1,23 @@
+.order-summary { position: sticky; top: 1rem; padding: 0; min-width: 0; background: var(--summary); border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; }
+.summary-heading { padding: 1rem 1.25rem; color: #fff; background: var(--accent); cursor: pointer; display: grid; gap: 0.4rem; list-style: none; }
+.summary-heading::-webkit-details-marker { display: none; }
+.summary-heading > span { display: flex; justify-content: space-between; gap: 1rem; font-size: 0.9rem; }
+.summary-heading h2 { font-size: 1.05rem; }
+.summary-body { padding: 1.25rem; }
+.summary-reference { display: grid; gap: 0.25rem; }
+.summary-reference > span, .summary-note, .summary-empty { color: var(--muted); font-size: 0.85rem; }
+.summary-reference strong { letter-spacing: 0.06em; }
+.summary-items { list-style: none; padding: 0; margin: 1rem 0; }
+.summary-items li { display: flex; justify-content: space-between; gap: 0.75rem; padding-block: 0.45rem; font-size: 0.9rem; }
+.summary-items li > strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.quantity-badge { font-size: 0.8rem; }
+.summary-total { border-top: 1px solid var(--line); display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; padding-top: 1rem; }
+.summary-total strong { font-size: clamp(1.3rem, 2.3vw, 1.7rem); color: var(--accent); font-variant-numeric: tabular-nums; }
+.summary-section { border-top: 1px solid var(--line); margin-top: 1rem; padding-top: 1rem; }
+.summary-section h3 { margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--muted); }
+.summary-section p { margin-bottom: 0.65rem; font-weight: 650; }
+.seat-badges { display: flex; flex-wrap: wrap; gap: 0.4rem; font-size: 0.85rem; }
+.seat-badge { padding: 0.3rem 0.55rem; border-radius: 0.4rem; border: 1px solid #abbdb0; background: #fff; color: var(--accent); font-weight: 650; }
+.summary-countdown { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; margin-top: 1rem; padding: 0.75rem; background: var(--warning-surface); color: var(--warning); border: 1px solid #d6b977; border-radius: 0.6rem; font-size: 0.85rem; }
+.summary-countdown strong { margin-left: auto; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 800px) { .order-summary { position: static; grid-row: 1; } .summary-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; } .summary-body { padding: 1rem; } }

@@ -1,0 +1,25 @@
+.payment-reservation { color: var(--warning); background: var(--warning-surface); border-radius: 0.5rem; padding: 0.5rem 0.75rem; font-size: 0.875rem; }
+.payment-methods { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; padding: 0; margin: 1.5rem 0; border: 0; }
+.payment-methods legend { margin-bottom: 0.75rem; font-size: 0.9rem; font-weight: 650; }
+.step-workspace .payment-method-card { display: flex; align-items: flex-start; gap: 0.65rem; padding: 1rem; margin: 0; border: 2px solid var(--line); border-radius: 0.75rem; cursor: pointer; }
+.payment-method-card.selected { border-color: var(--accent); background: var(--summary); }
+.payment-method-card:focus-within { outline: 3px solid #527958; outline-offset: 3px; }
+.payment-method-card input[type='radio'] { accent-color: var(--accent); min-height: 1rem; width: 1rem; height: 1rem; padding: 0; margin: 0.2rem 0 0; }
+.payment-method-card > .icon { margin-top: 0.1rem; }
+.payment-method-card strong { display: block; }
+.payment-method-card small { display: block; margin-top: 0.25rem; color: var(--muted); font-size: 0.8rem; }
+.payment-method-card .method-selected { color: var(--accent); font-weight: 750; }
+.payment-methods:disabled label { cursor: default; }
+.cash-form { border: 1px solid var(--line); border-radius: 0.75rem; padding: 1rem; background: #f6f8f5; }
+.cash-total, .cash-change { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.5rem; }
+.cash-total strong { font-size: 1.4rem; color: var(--accent); }
+.cash-form input { width: 100%; background: #fff; font-variant-numeric: tabular-nums; }
+.payment-mode { font-size: 0.85rem; color: var(--muted); }
+.payment-confirmation { border-top: 1px solid var(--line); padding-top: 1.25rem; margin-top: 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+.payment-confirmation p { color: var(--muted); font-size: 0.85rem; flex: 1 1 13rem; }
+.payment-confirmation button { min-width: 9rem; justify-content: center; }
+.payment-message { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.75rem; border-radius: 0.5rem; background: var(--error-surface); margin-block: 1rem; font-size: 0.875rem; }
+.payment-message .icon { margin-top: 0.1rem; }
+.warning-message { background: var(--warning-surface); color: var(--warning); }
+.cancel-reservation { margin-top: 1.25rem; font-size: 0.85rem; }
+@media (max-width: 520px) { .payment-methods { grid-template-columns: 1fr; } }

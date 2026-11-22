@@ -1,0 +1,9 @@
+.payment-qr-card { text-align: center; border: 1px solid var(--line); border-radius: 0.85rem; background: #f6f8f5; padding: 1.25rem; margin-block: 1rem; }
+.payment-qr-card h3 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+.qr-mode-label, .qr-expiry { font-size: 0.8rem; color: var(--muted); }
+.qr-white-surface { margin: 1rem auto; padding: 1.25rem; width: fit-content; max-width: 100%; background: #fff; border: 1px solid var(--line); border-radius: 0.5rem; }
+.qr-white-surface img { display: block; width: min(16rem, 100%); height: auto; aspect-ratio: 1; object-fit: contain; }
+.qr-white-surface figure { margin: 0; padding: 0; }
+.qr-white-surface figcaption { color: var(--muted); font-size: 0.8rem; margin-top: 0.5rem; }
+.qr-amount { font-size: 1.6rem; font-weight: 750; color: var(--accent); font-variant-numeric: tabular-nums; }
+.payment-qr-card .state-badge { margin-block: 0.75rem; }

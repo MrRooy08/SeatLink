@@ -1,0 +1,6 @@
+.icon { display: inline-block; flex: 0 0 auto; vertical-align: -0.2em; }
+.with-icon { display: inline-flex; align-items: center; gap: 0.5rem; }
+.state-badge { display: inline-flex; gap: 0.35rem; align-items: center; border: 1px solid var(--line); border-radius: 99px; padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 650; background: #fff; }
+.state-badge.pending { color: var(--warning); background: var(--warning-surface); border-color: #d6b977; }
+.state-badge.success { color: var(--accent); background: var(--summary); }
+.state-badge.error { color: var(--error); background: var(--error-surface); border-color: #daa39b; }

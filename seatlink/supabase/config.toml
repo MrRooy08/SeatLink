@@ -1,0 +1,15 @@
+project_id = "seatlink"
+
+[db.seed]
+enabled = false
+
+[auth]
+enable_signup = false
+
+# Device bearer tokens are verified by the endpoint and table-scoped database RPC.
+[functions.seat-extension]
+verify_jwt = false
+
+# Owner JWTs or signed 2C2P callbacks are verified inside the endpoint.
+[functions.qr-payment]
+verify_jwt = false

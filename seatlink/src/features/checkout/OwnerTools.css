@@ -1,0 +1,19 @@
+.checkout-panels { display: grid; gap: 1rem; margin-top: 1.5rem; }
+.checkout-panel { padding: 1.25rem; background: var(--card); border: 1px solid var(--line); border-radius: 1rem; }
+.checkout-panel h2, .checkout-panel h3 { margin: 0 0 0.75rem; }
+.checkout-panel p + p, .checkout-panel p + button, .checkout-panel p + label { margin-top: 0.75rem; }
+.checkout-panel label { display: grid; gap: 0.35rem; margin-block: 0.75rem; }
+.checkout-panel input[type='number'] { max-width: 10rem; }
+.checkout-panel textarea { width: 100%; min-height: 5rem; font: inherit; padding: 0.6rem; }
+.checkout-panel select { max-width: 100%; }
+.checkout-panel .action-row { margin-top: 0.75rem; }
+.development-panel { border-style: dashed; }
+.exception-panel { border: 2px solid #9b6023; }
+.exception-panel article + article { border-top: 1px solid var(--line); padding-top: 1rem; margin-top: 1rem; }
+.demo-qr { margin: 1rem 0; width: fit-content; max-width: 100%; text-align: center; font-weight: 650; }
+.demo-qr img { display: block; width: 15rem; max-width: 100%; height: auto; }
+.allocation-group { margin-top: 1.25rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+.allocation-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; padding-block: 0.6rem; }
+.allocation-row label { display: flex; align-items: center; gap: 0.5rem; }
+.allocation-row input[type='checkbox'] { min-height: 1.2rem; width: 1.2rem; }
+.allocation-row span { color: var(--muted); font-size: 0.875rem; }

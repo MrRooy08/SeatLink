@@ -1,0 +1,1 @@
+These four SVG food illustrations were created for SeatLink. They are original assets, provided under CC0-1.0; no external photographs or attribution requirements apply. Each illustrates its named menu item. Unknown items use a neutral cutlery icon rather than an unrelated food image.
