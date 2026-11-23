@@ -171,6 +171,36 @@ Response mapping additionally follows [Do Payment's QR image example](https://de
 
 ## Pair the customer display
 
+### Vercel deployment and direct display links
+
+The confirmed failing request on 23 November 2026 was `https://seat-link.vercel.app/display` (the `#` pairing token stays in the browser). HTTP inspection returned Vercel `404 NOT_FOUND` with `text/plain`, while `/`, the deployed JavaScript/CSS bundles and `/favicon.svg` returned 200. The supplied pairing token separately returned 200 from Supabase's restricted `read_customer_display` RPC. This was a page-routing failure before React or Supabase ran, rather than a failed asset or Edge Function request.
+
+Vite's development server serves the SPA shell for direct routes locally. Vercel needs the corresponding rewrite. The app-root `vercel.json` now rewrites only `/display`, `/display/`, `/owner` and `/owner/` internally to `/index.html`. This preserves the visible URL, query parameters and pairing fragment; asset paths, `/api/*`, unknown paths and external Supabase requests are not caught by a broad fallback. Pairing already generates `/display#TOKEN` from `window.location.origin`, with no hardcoded localhost destination. The display client keeps Supabase auth URL detection disabled so it does not consume the pairing fragment.
+
+For this repository, use these Vercel Project → Settings → Build and Deployment values:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `seatlink` (the directory with this README, `index.html`, `vercel.json` and the Vite `package.json`) |
+| Framework Preset | Vite |
+| Build Command | `npm run build` |
+| Output Directory | `dist`, relative to Root Directory |
+| Install Command | Default / `npm ci` |
+
+The repository's parent `package.json` contains only a Supabase dependency and is not the frontend build root. `vercel.json` pins the framework/build/output inside the application root. Dashboard overrides and the deployment's actual Root Directory could not be inspected because the local Vercel CLI has no valid authentication token; successful existing root/asset responses show that the current deployment already serves a Vite build.
+
+Commit and push the routing configuration with the application changes, then redeploy the same Vercel project. Keep `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` configured in that deployment's Vercel environment; `.env.local` remains the local configuration file. No Supabase migration or Edge Function deployment is needed for this routing fix.
+
+After redeployment, check:
+
+1. Open `/display` directly: it should load SeatLink's **Pair this display** screen with HTTP 200.
+2. Open the generated pairing link directly, then refresh it. The same station should load, without owner sign-in, and the token/query string should remain in the address bar. Reuse a valid existing link, or deliberately pair again if it expired; pairing again replaces the prior link.
+3. Check `/display/?source=pairing#TOKEN`, `/owner?branch=BRANCH_ID` and their refreshes.
+4. Confirm the built JS/CSS and `/food/iced-tea.svg` load with their correct content types. `/api/nonexistent` and `/assets/nonexistent.js` should still return 404 rather than application HTML.
+5. Pair from **Customer display settings**, open the generated link on the deployed origin, and verify cart/payment updates reach that display.
+
+The local production build/type checking, lint and mocked owner/display tests validate link generation, direct display mounting, refresh/remount, query/fragment preservation and subscription recovery. The added Vercel configuration has not been deployed by this task, so post-fix production navigation, refresh and the complete production pairing flow remain unverified. Vercel documents the SPA deep-link requirement in [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite) and internal URL-preserving behavior in [Rewrites](https://vercel.com/docs/routing/rewrites).
+
 Open **Customer display settings**, choose **Pair customer display**, then open the generated link in another window.
 
 Each counter is a checkout_stations row with its own current-order pointer. This implementation creates one counter per owner per branch. Two different owners in the same branch therefore use separate counters. Multiple windows signed in as the same owner in the same branch share that counter.

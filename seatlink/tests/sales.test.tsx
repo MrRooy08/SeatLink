@@ -371,5 +371,34 @@ it('uses native radio keyboard navigation and makes the selected method visible'
   vi.unstubAllGlobals()
 })
 
+it('pairs the current station using the active deployment origin and opens the generated display link', async () => {
+  const user = userEvent.setup()
+  const token = 'b'.repeat(64)
+  const originalRpc = vi.mocked(client.rpc).getMockImplementation()!
+  vi.mocked(client.rpc).mockImplementation(async (name, args) => {
+    if (name === 'pair_customer_display') return { data: token, error: null } as never
+    return originalRpc(name, args)
+  })
+  render(<Owner client={client} />)
+  await user.click(await screen.findByRole('button', { name: 'Customer display settings' }))
+  await user.click(screen.getByRole('button', { name: 'Pair customer display' }))
+  const link = await screen.findByRole('link', { name: 'Open paired display in a new window' })
+  const url = new URL(link.getAttribute('href')!)
+  expect(url.origin).toBe(window.location.origin)
+  expect(url.pathname).toBe('/display')
+  expect(url.hash).toBe('#' + token)
+  expect(client.rpc).toHaveBeenCalledWith('pair_customer_display', { p_station_id: 'station-one' })
+  window.history.replaceState(null, '', url.pathname + '?source=pairing' + url.hash)
+  const display = render(<CustomerDisplay />)
+  await screen.findByText('Counter one')
+  expect(api.readDisplay).toHaveBeenCalledWith(client, token, expect.any(AbortSignal))
+  display.unmount()
+  render(<CustomerDisplay />)
+  await screen.findByText('Counter one')
+  expect(window.location.search).toBe('?source=pairing')
+  expect(window.location.hash).toBe('#' + token)
+  expect(api.readDisplay).toHaveBeenLastCalledWith(client, token, expect.any(AbortSignal))
+})
+
 
 

@@ -51,6 +51,20 @@ it('renders the paired checkout with a demo QR and no owner controls or owner se
   expect(api.readDisplay).toHaveBeenCalledWith(client, 'a'.repeat(64), expect.any(AbortSignal))
 })
 
+it('loads the display directly and restores it after remount without losing query parameters or fragment', async () => {
+  const path = '/display/?source=pairing&station=counter-one#' + 'a'.repeat(64)
+  window.history.replaceState(null, '', path)
+  const first = render(<App />)
+  await screen.findByText('Counter one')
+  expect(api.ownerSession).not.toHaveBeenCalled()
+  first.unmount()
+  render(<App />)
+  await screen.findByText('Counter one')
+  expect(window.location.pathname + window.location.search + window.location.hash).toBe(path)
+  expect(api.readDisplay).toHaveBeenLastCalledWith(client, 'a'.repeat(64), expect.any(AbortSignal))
+  expect(api.ownerSession).not.toHaveBeenCalled()
+})
+
 it('clears the QR when payment completes and cleans its subscription on unmount', async () => {
   const view = render(<App />)
   await screen.findByAltText('Demo payment QR, no real charge')
