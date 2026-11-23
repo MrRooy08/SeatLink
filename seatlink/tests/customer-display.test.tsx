@@ -48,6 +48,7 @@ it('renders the paired checkout with a demo QR and no owner controls or owner se
   expect(await screen.findByAltText('Demo payment QR, no real charge')).toBeTruthy()
   expect(screen.queryByRole('button', { name: /Select|Add|Cancel|Simulate|Sign out/ })).toBeNull()
   expect(api.ownerSession).not.toHaveBeenCalled()
+  expect(screen.queryByRole('region',{name:"Today's sales"})).toBeNull()
   expect(api.readDisplay).toHaveBeenCalledWith(client, 'a'.repeat(64), expect.any(AbortSignal))
 })
 

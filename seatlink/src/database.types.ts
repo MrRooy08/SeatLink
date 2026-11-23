@@ -15,6 +15,10 @@ type Table<Row, Insert, Relationships extends unknown[] = []> = {
 
 export type SeatStatus = 'AVAILABLE' | 'LOCKED' | 'UNAVAILABLE'
 export type SeatLabel = 'A' | 'B' | 'C' | 'D'
+export type DailySales = {
+  branch_id: string; day: string; timezone: string; currency: string; day_start: string; day_end: string; server_now: string
+  total_minor: string; paid_orders: number; basis: 'GROSS'; mock_excluded: boolean; sandbox_orders: number; refunds_supported: false
+}
 
 export type MenuItem = {
   id: string
@@ -80,7 +84,7 @@ export type PaymentException = {
 }
 export type DisplaySnapshot = {
   server_now: string; station_id: string; station_name: string; branch: string
-  tables: { table_number: number; seats: { label: SeatLabel; status: SeatStatus }[] }[]
+  tables: { id?: string; table_number: number; seats: { id?: string; label: SeatLabel; status: SeatStatus; current_order?: boolean }[] }[]
   order: {
     reference: string; status: SalesOrder['status']; total_minor: number; currency: string
     session_expires_at: string | null; payment_status: PaymentAttempt['status'] | null
@@ -140,8 +144,8 @@ export type Database = {
         [Relationship<'owner_memberships_organisation_id_fkey', 'organisation_id', 'organisations'>]
       >
       branches: Table<
-        { id: string; organisation_id: string; name: string },
-        { id?: string; organisation_id: string; name: string },
+        { id: string; organisation_id: string; name: string; address: string | null; timezone: string; currency: string | null },
+        { id?: string; organisation_id: string; name: string; address?: string | null; timezone?: string; currency?: string | null },
         [Relationship<'branches_organisation_id_fkey', 'organisation_id', 'organisations'>]
       >
       tables: Table<
@@ -158,6 +162,7 @@ export type Database = {
     Views: Record<never, never>
     Functions: {
       read_branch_sales: { Args: { p_branch_id: string }; Returns: SalesSnapshot }
+      read_branch_daily_sales: { Args: { p_branch_id: string }; Returns: DailySales }
       save_draft_order: {
         Args: { p_order_id: string; p_branch_id: string; p_revision: number; p_request_id: string; p_items: DraftItems }
         Returns: SalesOrder

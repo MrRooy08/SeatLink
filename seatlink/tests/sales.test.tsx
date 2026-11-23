@@ -7,9 +7,13 @@ import CustomerDisplay from '../src/features/display/CustomerDisplay'
 import type { SalesOrder, SalesSnapshot } from '../src/database.types'
 import type { SeatLinkClient } from '../src/seat-data'
 
-const api = vi.hoisted(() => ({ readSales: vi.fn(), loadBranches: vi.fn(), readDisplay: vi.fn() }))
+const api = vi.hoisted(() => ({ readSales: vi.fn(), loadBranches: vi.fn(), readDisplay: vi.fn(), readDailySales: vi.fn() }))
 vi.mock('../src/features/display/display-data', () => ({ readDisplay: api.readDisplay }))
 vi.mock('../src/supabase', () => ({ createDisplayClient: () => client }))
+vi.mock('../src/features/daily-sales/daily-sales-service', () => ({
+  readDailySales: api.readDailySales,
+  formatDailyMoney: () => 'SGD 0.00',
+}))
 vi.mock('../src/sales-data', async (original) => ({
   ...await original<typeof import('../src/sales-data')>(),
   readSales: api.readSales,
@@ -38,6 +42,10 @@ function draft(): SalesOrder & { items: { order_id: string; menu_item_id: string
 }
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open','') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
+  api.readDailySales.mockImplementation(async (_client: unknown, branchId: string) => ({ branch_id: branchId, total_minor: '0', currency: 'SGD', paid_orders: 0,
+    sandbox_orders: 0, timezone: 'Asia/Singapore', day_end: new Date(Date.now()+86400000).toISOString(), server_now: new Date().toISOString() }))
   window.history.replaceState(null, '', '/owner?branch=riverside')
   snapshot = {
     server_now: new Date().toISOString(), order: null, history: [], cart_preview: [], cart_revision: 0, cart_total_minor: 0,
@@ -63,7 +71,9 @@ beforeEach(() => {
     return { server_now: snapshot.server_now, station_id: 'station-one', station_name: 'Counter one', branch: 'Riverside', tables: snapshot.tables,
       order: order && { ...order, reference: order.id.slice(0, 8), payment_attempt_id: attempt?.id, payment_status: attempt?.status ?? null,
         qr_expires_at: attempt?.qr_expires_at ?? null, qr_text: attempt?.status === 'PENDING' ? `seatlink-demo:${attempt.id}` : null,
-        selected_seats: [], allocations: snapshot.allocations ?? [] } }
+        selected_seats: snapshot.tables.flatMap(table => table.seats.filter(seat =>
+          (order.status === 'DRAFT' ? order.draft_seat_ids ?? [] : order.selected_seat_ids).includes(seat.id))
+          .map(seat => ({ id: seat.id, label: seat.label, table_number: table.table_number }))), allocations: snapshot.allocations ?? [] } }
   })
   api.loadBranches.mockResolvedValue([
     { id: 'riverside', name: 'Riverside', organisation: { name: 'Demo' } },
@@ -89,10 +99,12 @@ beforeEach(() => {
       snapshot.order = {
         ...snapshot.order!, status: 'PENDING', checkout_step: 'PAYMENT', revision: snapshot.order!.revision + 1,
         selected_seat_ids: input.p_seat_ids,
-        session_expires_at: new Date(Date.now() + 300000).toISOString(),
+        draft_seat_ids: input.p_seat_ids,
+        session_expires_at: snapshot.order?.session_expires_at ?? new Date(Date.now() + 300000).toISOString(),
       }
       for (const table of snapshot.tables) {
         for (const seat of table.seats) {
+          if (seat.locked_order_id === snapshot.order.id && !input.p_seat_ids.includes(seat.id)) { seat.status = 'AVAILABLE'; seat.locked_order_id = null }
           if (input.p_seat_ids.includes(seat.id)) {
             seat.status = 'LOCKED'
             seat.locked_order_id = snapshot.order.id
@@ -115,8 +127,8 @@ beforeEach(() => {
     }
     if (name === 'confirm_cash_payment') {
       snapshot.order!.status = 'PAID'; snapshot.order!.checkout_step = 'RESULT'; snapshot.order!.paid_method = 'CASH'
-      snapshot.allocations = [{ id: 'use-A', order_id: snapshot.order!.id, seat_id: 'A', started_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600000).toISOString(), status: 'ACTIVE', ended_at: null, label: 'A', table_number: 1 }]
-      snapshot.tables[0].seats[0].status = 'UNAVAILABLE'
+      snapshot.allocations = snapshot.order!.selected_seat_ids.length ? [{ id: 'use-A', order_id: snapshot.order!.id, seat_id: 'A', started_at: new Date().toISOString(), expires_at: new Date(Date.now() + 600000).toISOString(), status: 'ACTIVE', ended_at: null, label: 'A', table_number: 1 }] : []
+      if (snapshot.order!.selected_seat_ids.length) snapshot.tables[0].seats[0].status = 'UNAVAILABLE'
     }
     if (name === 'prepare_mock_qr') {
       const input = args as { p_request_id: string }
@@ -196,6 +208,7 @@ it('completes cash checkout and starts a new cart while paid seats remain occupi
   render(<Owner client={client} />)
   await payment(user)
   const deadline = snapshot.order!.session_expires_at
+  const salesReadsBeforePayment = api.readDailySales.mock.calls.length
   await user.click(screen.getByRole('radio', { name: 'Cash' }))
   const received = await screen.findByRole('textbox', { name: 'Amount received (SGD)' })
   await user.type(received, '1')
@@ -204,6 +217,7 @@ it('completes cash checkout and starts a new cart while paid seats remain occupi
   await user.type(received, '5.00')
   await user.dblClick(screen.getByRole('button', { name: 'Confirm', exact: true }))
   await screen.findByRole('heading', { name: 'Payment confirmed' })
+  await waitFor(() => expect(api.readDailySales.mock.calls.length).toBeGreaterThan(salesReadsBeforePayment))
   expect(client.rpc).toHaveBeenCalledWith('confirm_cash_payment', expect.objectContaining({ p_received_minor: 500 }))
   expect(vi.mocked(client.rpc).mock.calls.filter(([name]) => name === 'confirm_cash_payment')).toHaveLength(1)
   expect(snapshot.order!.session_expires_at).toBe(deadline)
@@ -398,6 +412,65 @@ it('pairs the current station using the active deployment origin and opens the g
   expect(window.location.search).toBe('?source=pairing')
   expect(window.location.hash).toBe('#' + token)
   expect(api.readDisplay).toHaveBeenLastCalledWith(client, token, expect.any(AbortSignal))
+})
+
+it.each(['CASH','QR'] as const)('completes %s checkout without seats and synchronizes the paired display', async method => {
+  const user = userEvent.setup()
+  render(<Owner client={client} />)
+  await seats(user)
+  await user.click(screen.getByRole('button', { name: 'Table 1 seat A' }))
+  await user.click(screen.getByRole('button', { name: 'Continue without seats' }))
+  await screen.findByRole('heading', { name: 'Payment', exact: true })
+  expect(snapshot.order!.selected_seat_ids).toEqual([])
+  expect(snapshot.order!.draft_seat_ids).toEqual([])
+  expect(snapshot.tables.every(table => table.seats.every(seat => seat.status === 'AVAILABLE'))).toBe(true)
+  window.history.replaceState(null, '', '/owner?branch=riverside#'+'a'.repeat(64))
+  render(<CustomerDisplay />)
+  await waitFor(() => expect(screen.getAllByText('No seats selected').length).toBeGreaterThanOrEqual(2))
+  await user.click(screen.getByRole('radio', { name: method === 'CASH' ? 'Cash' : 'QR payment' }))
+  if (method === 'CASH') await user.type(await screen.findByRole('textbox', { name: 'Amount received (SGD)' }), '5.00')
+  await user.click(await screen.findByRole('button', { name: 'Confirm', exact: true }))
+  if (method === 'QR') {
+    await screen.findByAltText('Demo payment QR, no real charge')
+    await client.rpc('simulate_mock_payment', { p_attempt_id: snapshot.attempts![0].id, p_event_id: crypto.randomUUID(), p_result: 'SUCCESS' })
+  }
+  act(() => window.dispatchEvent(new Event('online')))
+  await screen.findByRole('heading', { name: 'Payment confirmed' })
+  await waitFor(() => expect(snapshot.allocations ?? []).toHaveLength(0))
+  expect(screen.queryByText(/seat-use period started/)).toBeNull()
+  expect(screen.queryByText(/seat-use sessions have ended/)).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Table 1 seat A' })).toBeNull()
+})
+
+it('skips an existing reservation without resetting expiry or releasing another order', async () => {
+  const user = userEvent.setup()
+  render(<Owner client={client} />)
+  await payment(user)
+  const deadline = snapshot.order!.session_expires_at
+  snapshot.tables[1].seats[0].status = 'LOCKED'
+  snapshot.tables[1].seats[0].locked_order_id = 'another-order'
+  await user.click(screen.getByRole('button', { name: 'Continue without seats' }))
+  await waitFor(() => expect(snapshot.order!.selected_seat_ids).toEqual([]))
+  expect(snapshot.order!.session_expires_at).toBe(deadline)
+  expect(snapshot.tables[0].seats[0].status).toBe('AVAILABLE')
+  expect(snapshot.tables[1].seats[0].locked_order_id).toBe('another-order')
+  expect(screen.getByText('No seats selected')).toBeTruthy()
+})
+
+it.each(['cart','seats','payment'] as const)('protects %s state when a different branch is chosen in the modal', async stage => {
+  const user = userEvent.setup()
+  render(<Owner client={client} />)
+  if (stage==='cart') await user.click(await screen.findByRole('button',{name:'Add Iced tea'}))
+  else if (stage==='seats') { await seats(user);await user.click(screen.getByRole('button',{name:'Table 1 seat A'})) }
+  else await payment(user)
+  const deadline = snapshot.order?.session_expires_at
+  await user.click(screen.getByRole('button',{name:'Switch branch',exact:true}))
+  await user.click(screen.getByRole('radio',{name:'Market Square'}))
+  await user.click(screen.getByRole('button',{name:'Continue',exact:true}))
+  expect((await screen.findByRole('alert')).textContent).toMatch(stage==='cart'?/cart changes to save/:stage==='seats'?/Clear your seat selection/:/Cancel the pending order/)
+  expect(new URL(location.href).searchParams.get('branch')).toBe('riverside')
+  expect(snapshot.order?.session_expires_at).toBe(deadline)
+  expect(api.readSales.mock.calls.some(call=>call[1]==='market')).toBe(false)
 })
 
 

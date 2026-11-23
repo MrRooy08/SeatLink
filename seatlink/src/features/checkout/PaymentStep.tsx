@@ -7,9 +7,11 @@ import { usePayment } from './usePayment'
 import PaymentQr from './PaymentQr'
 import Icon from '../../components/Icon'
 import './PaymentStep.css'
+import SeatMap from '../seats/SeatMap'
+import { currentOrderSeatIds } from '../seats/order-seat-map'
 
-export default function PaymentStep({ client, snapshot, now, disabled, refresh, cancel }: {
-  client: SeatLinkClient; snapshot: SalesSnapshot; now: number; disabled: boolean; refresh: () => Promise<void>; cancel: () => void
+export default function PaymentStep({ client, snapshot, now, disabled, refresh, cancel, skipSeats }: {
+  client: SeatLinkClient; snapshot: SalesSnapshot; now: number; disabled: boolean; refresh: () => Promise<void>; cancel: () => void; skipSeats: () => void
 }) {
   const payment = usePayment(client, snapshot, now, disabled, refresh)
   const { attempt, busy, expired, receivedMinor, unresolved } = payment
@@ -20,8 +22,8 @@ export default function PaymentStep({ client, snapshot, now, disabled, refresh, 
     (qr && (!!payment.configuration || payment.validQr))
   return <section aria-labelledby="payment-title">
     <h2 id="payment-title" className="with-icon"><Icon name="checkout" />Payment</h2>
-    <p className="payment-reservation with-icon"><Icon name="timer" />Reservation remaining <strong>{countdown(order.session_expires_at, now)}</strong></p>
-    {expired && <p role="alert" className="payment-message"><Icon name="warning" />The reservation expired. Start a new order to reserve seats again.</p>}
+    <p className="payment-reservation with-icon"><Icon name="timer" />{order.selected_seat_ids.length ? 'Reservation remaining' : 'Checkout remaining'} <strong>{countdown(order.session_expires_at, now)}</strong></p>
+    {expired && <p role="alert" className="payment-message"><Icon name="warning" />The checkout session expired. Start a new order to continue.</p>}
     <fieldset className="payment-methods" disabled={busy}><legend>Choose payment method</legend>
       {(['QR', 'CASH'] as const).map((method) => <label key={method} className={`payment-method-card ${order.payment_method === method ? 'selected' : ''}`}>
         <input type="radio" name="payment-method" aria-label={method === 'QR' ? 'QR payment' : 'Cash'} value={method} checked={order.payment_method === method} onChange={() => payment.select(method)} />
@@ -53,13 +55,18 @@ export default function PaymentStep({ client, snapshot, now, disabled, refresh, 
         'The QR request is processing. Check payment status if it does not appear.' :
         'No current QR is available. An expired or hidden QR may still accept payment; verify its status before cash.'}</p>}
       {attempt?.provider === 'TWO_C2P' && <button type="button" disabled={busy} onClick={() => payment.inquire(attempt.id)}>Check payment status</button>}
-      <p className="form-help">QR renewal keeps the original seat-reservation deadline.</p>
+      <p className="form-help">QR renewal keeps the original checkout-session deadline.</p>
     </div>}
     {order.payment_method && <div className="payment-confirmation"><p>{cash ? 'Confirm only after receiving the cash.' : 'Confirm to display the payment QR code.'}</p>
       <button type="button" className="primary with-icon" disabled={cannotConfirm} onClick={payment.confirm}>
         <Icon name={cash ? 'cash' : 'qr'} />{payment.working ? 'Processing...' : 'Confirm'}</button></div>}
     {payment.notice && <p role="status" className="payment-message warning-message"><Icon name="timer" />{payment.notice}</p>}
     {payment.error && <p role="alert" className="payment-message"><Icon name="error" />{payment.error}</p>}
+    {order.selected_seat_ids.length > 0 && <section aria-label="This order’s reserved seats">
+      <h3>Reserved seats</h3><SeatMap tables={snapshot.tables} selectedIds={currentOrderSeatIds(snapshot)} />
+      <p className="form-help">Continue without seats releases only this order’s reservation. The checkout deadline and payment attempts stay unchanged.</p>
+      <button type="button" disabled={busy} onClick={skipSeats}>Continue without seats</button>
+    </section>}
     <button type="button" className="cancel-reservation" disabled={payment.working || disabled} onClick={cancel}>Cancel and start again</button>
   </section>
 }

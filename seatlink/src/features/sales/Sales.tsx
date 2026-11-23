@@ -51,12 +51,14 @@ function SalesWorkspace({ client, branchId, snapshot, now, disabled, refresh, se
   </>
 }
 
-export default function Sales({ client, branchId, setNavigationBlock }: {
-  client: SeatLinkClient; branchId: string; setNavigationBlock: Dispatch<SetStateAction<NavigationBlock>>
+export default function Sales({ client, branchId, setNavigationBlock, onPaymentCompleted }: {
+  client: SeatLinkClient; branchId: string; setNavigationBlock: Dispatch<SetStateAction<NavigationBlock>>; onPaymentCompleted?: () => void
 }) {
   const { result, failed, loadError, refreshing, live, refresh } = useSales(client, branchId)
   const [tick, setTick] = useState(() => performance.now())
   const loaded = !!result
+  const paidOrderId = result?.snapshot.order && ['PAID','PAID_REVIEW'].includes(result.snapshot.order.status) ? result.snapshot.order.id : undefined
+  useEffect(() => { if (paidOrderId) onPaymentCompleted?.() }, [paidOrderId, onPaymentCompleted])
   useEffect(() => {
     if (!loaded) setNavigationBlock({ branchId, message: 'Wait for the branch order to load before changing branches.' })
     return () => setNavigationBlock(null)

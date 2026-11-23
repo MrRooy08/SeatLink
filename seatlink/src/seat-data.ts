@@ -6,7 +6,7 @@ const pageSize = 100
 
 function branchQuery(client: SeatLinkClient, signal: AbortSignal, offset: number) {
   return client.from('branches')
-    .select('id, name, organisation:organisations!inner(name)')
+    .select('id, name, address, timezone, currency, organisation:organisations!inner(name)')
     .order('name')
     .order('id')
     .range(offset, offset + pageSize - 1)

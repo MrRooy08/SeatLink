@@ -43,7 +43,7 @@ export default function OrderSummary({ snapshot, checkout, now }: {
         <section className="summary-section"><h3 className="with-icon"><Icon name={method === 'CASH' ? 'cash' : 'qr'} />Payment method</h3>
           <p>{method === 'CASH' ? 'Cash' : method === 'QR' ? 'QR payment' : 'Not selected'}</p>
           <span className={`state-badge ${paid ? 'success' : problem ? 'error' : 'pending'}`}><Icon name={paid ? 'success' : problem ? 'warning' : 'timer'} />{status}</span></section>
-        {order?.status === 'PENDING' && <div className="summary-countdown"><Icon name="timer" /><span>Reservation remaining</span><strong>{countdown(order.session_expires_at, now)}</strong></div>}
+        {order?.status === 'PENDING' && <div className="summary-countdown"><Icon name="timer" /><span>{order.selected_seat_ids.length ? 'Reservation remaining' : 'Checkout remaining'}</span><strong>{countdown(order.session_expires_at, now)}</strong></div>}
       </div>
     </details>
   </aside>

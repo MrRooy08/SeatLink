@@ -77,6 +77,8 @@ beforeAll(async () => {
   await admin.query(await sql('../supabase/migrations/20261118000600_cash_and_sandbox_payments.sql'))
   await admin.query(await sql('../supabase/migrations/20261118000700_guided_display.sql'))
   await admin.query(await sql('../supabase/migrations/20261118000800_qr_confirmation_and_display.sql'))
+  await admin.query(await sql('../supabase/migrations/20261123000000_optional_seats.sql'))
+  await admin.query(await sql('../supabase/migrations/20261123000100_branches_and_daily_sales.sql'))
 })
 
 afterAll(async () => {
@@ -99,6 +101,14 @@ it('runs guided checkout, cash and provider-result permission scenarios against 
 
 it('runs QR confirmation, renewal and canonical owner/display projections against PostgreSQL', async () => {
   await admin.query(await sql('../supabase/tests/qr_confirmation.sql'))
+})
+
+it('runs optional-seat checkout, skip-release and paired map isolation scenarios', async () => {
+  await admin.query(await sql('../supabase/tests/optional_seats.sql'))
+})
+
+it('runs branch-authorized daily sales, canonical-payment and timezone assertions', async () => {
+  await admin.query(await sql('../supabase/tests/daily_sales.sql'))
 })
 
 it('serializes simultaneous seat requests and rolls back the entire losing selection', async () => {
@@ -224,4 +234,38 @@ it('reuses one QR when two owner requests confirm the same reservation concurren
   const { rows: [count] } = await admin.query('select count(*)::integer as count from public.payment_attempts where order_id=$1', [ids.order2])
   expect(count.count).toBe(1)
 })
+
+it('serializes skipping seats with cash completion so released seats receive no allocation', async () => {
+  const { rows: [attempt] } = await first.query('select id from public.payment_attempts where order_id=$1', [ids.order2])
+  await first.query('select public.resolve_mock_attempt($1)', [attempt.id])
+  await first.query("select public.select_payment_method($1,'CASH')", [ids.order2])
+  const { rows: [order] } = await first.query('select revision,session_expires_at from public.orders where id=$1', [ids.order2])
+  const { rows: [backend] } = await second.query('select pg_backend_pid() as pid')
+  await first.query('begin')
+  await first.query("select public.confirm_order_seats($1,$2,'{}')", [ids.order2,order.revision])
+  await second.query('begin')
+  const payment = second.query('select public.confirm_cash_payment($1,$2,500)', [ids.order2,randomUUID()])
+    .then(result => ({ result,error:null }), (error: Error) => ({ result:null,error }))
+  try {
+    let waiting = false
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const { rows } = await admin.query('select wait_event_type from pg_stat_activity where pid=$1', [backend.pid])
+      if (rows[0]?.wait_event_type === 'Lock') { waiting=true;break }
+      await new Promise(resolve=>setTimeout(resolve,20))
+    }
+    expect(waiting).toBe(true)
+    await first.query('commit')
+    expect((await payment).error).toBeNull()
+    await second.query('commit')
+  } finally {
+    await first.query('rollback');await second.query('rollback')
+  }
+  const { rows: [paid] } = await admin.query('select status,selected_seat_ids,session_expires_at from public.orders where id=$1', [ids.order2])
+  expect(paid).toEqual({ status:'PAID',selected_seat_ids:[],session_expires_at:order.session_expires_at })
+  expect((await admin.query('select id from public.seat_use_sessions where order_id=$1', [ids.order2])).rows).toHaveLength(0)
+  expect((await admin.query('select status from public.seats where id=$1',[ids.seatB])).rows[0].status).toBe('AVAILABLE')
+  expect((await admin.query('select status from public.seats where id=$1',[ids.seatA])).rows[0].status).toBe('UNAVAILABLE')
+})
+
+
 

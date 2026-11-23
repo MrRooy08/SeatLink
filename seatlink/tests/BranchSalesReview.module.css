@@ -1,0 +1,5 @@
+.frame { max-width: 1120px; margin: 1rem auto; padding: 1rem; }
+.note { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
+.reviewTools { border-top: 1px solid var(--line); padding-top: 1rem; margin-top: 1rem; }
+.reviewTools h2 { font-size: 0.85rem; color: var(--muted); }
+.reviewTools button { margin: 0.5rem 0.5rem 0 0; }

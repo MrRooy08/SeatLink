@@ -1,0 +1,40 @@
+.map { margin-block: 0.75rem; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 0.9rem; list-style: none; padding: 0; margin: 0 0 0.75rem; font-size: 0.75rem; color: var(--muted); }
+.legend li { display: inline-flex; align-items: center; gap: 0.35rem; }
+.swatch, .currentSwatch { display: inline-grid; place-items: center; width: 1rem; height: 1rem; border-radius: 0.25rem; border: 2px solid var(--seat-border, var(--accent)); font-size: 0.65rem; }
+.swatch { color: var(--seat-ink, var(--accent)); background: var(--seat-fill, #fff); }
+.swatch svg { width: 0.7rem; height: 0.7rem; }
+.currentSwatch { background: #fff; color: var(--accent); outline: 2px solid var(--accent); outline-offset: 1px; }
+.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); gap: 0.6rem; }
+.tableCard { padding: 0.6rem; border: 1px solid var(--line); border-radius: 0.85rem; background: #f8faf7; min-width: 0; max-width: 260px; }
+.layout { display: grid; grid-template-columns: 52px 58px 52px; grid-template-areas: '. north .' 'west table east' '. south .'; align-items: center; justify-content: center; gap: 0.25rem 0.35rem; }
+.table { grid-area: table; display: grid; place-content: center; text-align: center; height: 58px; border-radius: 40%; background: #e7e9df; border: 1px solid #a2afa3; color: #354638; }
+.tableCard .table h3 { font-size: 0.95rem; margin: 0; line-height: 1; }
+.north { grid-area: north; }.east { grid-area: east; }.south { grid-area: south; }.west { grid-area: west; }
+.north, .east, .south, .west { display: grid; justify-items: center; gap: 0.25rem; min-width: 0; }
+.seat { --seat-fill: #fff; --seat-ink: #294c3b; --seat-border: #294c3b; position: relative; display: block; width: 52px; min-width: 44px; height: 52px; min-height: 44px; padding: 0; border: 0; border-radius: 0.5rem; background: transparent; color: var(--seat-ink); cursor: default; }
+button.seat { cursor: pointer; }
+.chair { position: absolute; inset: 2px; }
+.backrest { position: absolute; top: 1px; left: 7px; right: 7px; height: 16px; border: 2px solid var(--seat-border); border-radius: 7px 7px 3px 3px; background: var(--seat-fill); }
+.cushion { position: absolute; inset: 15px 3px 7px; display: grid; place-items: center; border: 2px solid var(--seat-border); border-radius: 5px 5px 8px 8px; background: var(--seat-fill); }
+.cushion strong { font-size: 0.95rem; font-weight: 750; line-height: 1; }
+.legs::before, .legs::after { content: ''; position: absolute; bottom: 2px; width: 3px; height: 7px; border-radius: 2px; background: var(--seat-border); }
+.legs::before { left: 10px; }.legs::after { right: 10px; }
+.statusIcon { position: absolute; top: 3px; left: 19px; width: 10px; height: 10px; display: grid; place-items: center; }
+.statusIcon svg { width: 10px; height: 10px; }
+.available { --seat-fill: #fff; --seat-ink: #294c3b; --seat-border: #294c3b; }
+.locked { --seat-fill: #ffedbc; --seat-ink: #704900; --seat-border: #987011; }
+.occupied { --seat-fill: #e2e5e4; --seat-ink: #414b46; --seat-border: #8c9991; }
+.selected { --seat-fill: #294c3b; --seat-ink: #fff; --seat-border: #294c3b; }
+.seat.selected, .seat.current { outline: 2px solid #294c3b; outline-offset: 1px; }
+.check { position: absolute; right: -1px; bottom: 3px; display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid #fff; border-radius: 50%; color: #fff; background: #294c3b; font-size: 10px; font-weight: 750; line-height: 1; }
+.tooltip { position: absolute; z-index: 5; bottom: calc(100% + 7px); left: 50%; translate: -50% 0; width: max-content; max-width: min(200px, 75vw); padding: 0.4rem 0.5rem; border-radius: 0.35rem; color: #fff; background: #202924; font-size: 0.72rem; font-weight: 500; line-height: 1.4; pointer-events: none; opacity: 0; visibility: hidden; }
+.west .tooltip { left: 0; translate: none; }
+.east .tooltip { left: auto; right: 0; translate: none; }
+.seat:hover .tooltip, .seat:focus-visible .tooltip { opacity: 1; visibility: visible; }
+.seat:disabled { opacity: 1; cursor: default; }
+button.seat:hover:not(:disabled) { background: #eaf2ec; }
+.seat:focus-visible { outline: 3px solid #527958; outline-offset: 2px; }
+.readOnly .cushion strong { font-size: 1.1rem; }
+.readOnly .table h3 { font-size: 1.05rem; }
+@media (max-width: 480px) { .tables { justify-items: center; } .tableCard { width: 100%; } }

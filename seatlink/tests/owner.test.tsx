@@ -25,11 +25,15 @@ const backend = vi.hoisted(() => {
     },
     loadBranches: vi.fn(),
     loadTables: vi.fn(),
+    retrySales: vi.fn(),
   }
 })
 
 vi.mock('../src/supabase', () => ({ supabase: { auth: backend.auth } }))
 vi.mock('../src/seat-data', () => ({ loadBranches: backend.loadBranches, loadTables: backend.loadTables }))
+vi.mock('../src/features/daily-sales/useDailySales', () => ({ useDailySales: (_client: unknown, branchId: string) => ({
+  result: { data: { branch_id: branchId, total_minor: '0', currency: 'SGD', paid_orders: 0, sandbox_orders: 0, timezone: 'Asia/Singapore' } }, retry: backend.retrySales,
+}) }))
 vi.mock('../src/use-sales', () => ({
   salesFallbackStaleMs: 15000,
   salesLiveStaleMs: 45000,
@@ -64,6 +68,8 @@ const table = {
 }
 
 beforeEach(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open','') }
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute('open') }
   window.history.replaceState(null, '', '/owner')
   backend.auth.getSession.mockResolvedValue({ data: { session: backend.session }, error: null })
   backend.loadBranches.mockResolvedValue([riverside])
@@ -109,6 +115,8 @@ it('signs in with email and password and reports invalid credentials', async () 
   expect((await screen.findByRole('alert')).textContent).toMatch(/Check your connection/)
 
   await user.click(screen.getByRole('button', { name: 'Sign in' }))
+  await user.click(await screen.findByRole('radio', { name: 'Market Square' }))
+  await user.click(screen.getByRole('button', { name: 'Continue', exact: true }))
   await screen.findByRole('heading', { name: 'Market Square' })
   expect(backend.auth.signInWithPassword).toHaveBeenLastCalledWith({
     email: 'owner@example.test',
@@ -155,26 +163,31 @@ it('rejects an unknown URL branch and waits for the current order before switchi
     .mockResolvedValueOnce([{ ...table, id: 'market-2', table_number: 2 }])
 
   render(<App />)
-  const selector = await screen.findByRole('combobox', { name: 'Branch' })
+  await screen.findByRole('dialog', { name: 'Choose a branch' })
   expect(screen.getByText(/branch in this link is unavailable/)).toBeTruthy()
   expect(backend.loadTables).not.toHaveBeenCalled()
 
-  await user.selectOptions(selector, 'riverside')
+  await user.click(screen.getByRole('radio', { name: 'Riverside' }))
+  await user.click(screen.getByRole('button', { name: 'Continue', exact: true }))
   expect(screen.getByText('Loading branch checkout…')).toBeTruthy()
   const oldSignal = backend.loadTables.mock.calls[0][2]
-  await user.selectOptions(selector, 'market')
+  await user.click(screen.getByRole('button', { name: 'Switch branch', exact: true }))
+  await user.click(screen.getByRole('radio', { name: 'Market Square' }))
+  await user.click(screen.getByRole('button', { name: 'Continue', exact: true }))
   expect(screen.getByRole('alert').textContent).toMatch(/Wait for the branch order/)
   expect(new URL(window.location.href).searchParams.get('branch')).toBe('riverside')
   await act(async () => finishOld([{ ...table, table_number: 99 }]))
   await screen.findByRole('button', { name: 'Checkout' })
-  await user.selectOptions(selector, 'market')
+  await user.click(screen.getByRole('button', { name: 'Continue', exact: true }))
   expect(oldSignal.aborted).toBe(true)
   expect(new URL(window.location.href).searchParams.get('branch')).toBe('market')
   await screen.findByRole('button', { name: 'Checkout' })
 
   expect(screen.queryByRole('heading', { name: 'Table 99' })).toBeNull()
 
-  await user.selectOptions(selector, 'riverside')
+  await user.click(screen.getByRole('button', { name: 'Switch branch', exact: true }))
+  await user.click(screen.getByRole('radio', { name: 'Riverside' }))
+  await user.click(screen.getByRole('button', { name: 'Continue', exact: true }))
   expect(screen.queryByRole('heading', { name: 'Table 1' })).toBeNull()
   await screen.findByRole('button', { name: 'Checkout' })
 })
@@ -189,4 +202,68 @@ it('retries failed branch and seat requests and handles a branch with no tables'
   expect((await screen.findByRole('alert')).textContent).toMatch(/load branch sales/)
   await user.click(screen.getByRole('button', { name: 'Retry' }))
   await screen.findByText(/No menu items configured for this branch/)
+})
+
+it('preserves a valid selected branch on refresh within the restored session', async () => {
+  backend.loadBranches.mockResolvedValue([riverside,market])
+  window.history.replaceState(null,'','/owner?branch=market')
+  const first = render(<App />)
+  await screen.findByRole('heading',{name:'Market Square'})
+  expect(screen.queryByRole('dialog')).toBeNull()
+  first.unmount()
+  render(<App />)
+  await screen.findByRole('heading',{name:'Market Square'})
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(new URL(location.href).searchParams.get('branch')).toBe('market')
+})
+
+it('requires selection for multiple branches and restores switch-button focus on cancel', async () => {
+  const user = userEvent.setup()
+  backend.loadBranches.mockResolvedValue([riverside,market])
+  render(<App />)
+  const dialog = await screen.findByRole('dialog',{name:'Choose a branch'})
+  expect(within(dialog).getByRole('button',{name:'Continue',exact:true}).hasAttribute('disabled')).toBe(true)
+  const radio = within(dialog).getByRole('radio',{name:'Riverside'})
+  radio.focus()
+  await user.keyboard(' ')
+  await user.click(within(dialog).getByRole('button',{name:'Continue',exact:true}))
+  await screen.findByRole('heading',{name:'Riverside'})
+  const trigger = screen.getByRole('button',{name:'Switch branch',exact:true})
+  await user.click(trigger)
+  const switcher = await screen.findByRole('dialog',{name:'Switch branch'})
+  expect((within(switcher).getByRole('radio',{name:'Riverside'}) as HTMLInputElement).checked).toBe(true)
+  within(switcher).getByRole('button',{name:'Continue',exact:true}).focus()
+  await user.tab()
+  expect(document.activeElement).toBe(within(switcher).getByRole('button',{name:'Close branch selection'}))
+  await user.tab({shift:true})
+  expect(document.activeElement).toBe(within(switcher).getByRole('button',{name:'Continue',exact:true}))
+  await user.click(within(switcher).getByRole('button',{name:'Cancel',exact:true}))
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(document.activeElement).toBe(trigger)
+})
+
+it('searches a long branch list by address and confirms the selected card', async () => {
+  const user = userEvent.setup()
+  backend.loadBranches.mockResolvedValue(Array.from({length:12},(_,index)=>({ ...riverside,id:`branch-${index}`,name:`Branch ${index+1}`,address:index===10?'Harbour Road':'Market Road' })))
+  render(<App />)
+  await user.type(await screen.findByRole('searchbox',{name:'Search branches'}),'Harbour')
+  expect(screen.getAllByRole('radio')).toHaveLength(1)
+  expect(screen.getByText('Harbour Road')).toBeTruthy()
+  await user.click(screen.getByRole('radio',{name:'Branch 11'}))
+  await user.click(screen.getByRole('button',{name:'Continue',exact:true}))
+  await screen.findByRole('heading',{name:'Branch 11'})
+  expect(new URL(location.href).searchParams.get('branch')).toBe('branch-10')
+})
+
+it('auto-selects the only accessible branch after a fresh login', async () => {
+  const user = userEvent.setup()
+  backend.auth.getSession.mockResolvedValue({data:{session:null},error:null})
+  backend.auth.signInWithPassword.mockImplementation(async()=>{ backend.emit('SIGNED_IN',backend.session);return {error:null} })
+  render(<App />)
+  await user.type(await screen.findByLabelText('Email address'),'owner@example.test')
+  await user.type(screen.getByLabelText('Password'),'password')
+  await user.click(screen.getByRole('button',{name:'Sign in'}))
+  await screen.findByRole('heading',{name:'Riverside'})
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(new URL(location.href).searchParams.get('branch')).toBe('riverside')
 })

@@ -34,7 +34,7 @@ export default function GuidedCheckout({ client, snapshot, checkout, now, disabl
         {checkout.step === 'SEATS' && <SeatSelection snapshot={snapshot} checkout={checkout} disabled={disabled}
           back={() => void checkout.run(() => checkoutOperation(client, 'change_draft_step', { p_order_id: snapshot.order!.id, p_step: 'MENU' }))} />}
         {checkout.step === 'PAYMENT' && <PaymentStep client={client} snapshot={snapshot} now={now}
-          disabled={busy} refresh={refresh} cancel={() => setCancel(true)} />}
+          disabled={busy} refresh={refresh} cancel={() => setCancel(true)} skipSeats={checkout.skipSeats} />}
         {checkout.step === 'RESULT' && <ResultStep snapshot={snapshot} now={now} disabled={busy} start={start} />}
         {checkout.error && <p role="alert">{checkout.error}</p>}
         {cancel && <section className="confirmation-panel" role="region" aria-label="Cancel and start again">

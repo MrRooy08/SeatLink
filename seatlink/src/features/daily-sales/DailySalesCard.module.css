@@ -1,0 +1,8 @@
+.card { min-width: 14rem; max-width: 22rem; padding: 0.9rem 1.1rem; border: 1px solid #b0c5b5; border-radius: 0.85rem; background: var(--summary); color: var(--accent); }
+.card h2 { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; font-weight: 650; margin: 0 0 0.25rem; }
+.amount { display: block; font-size: clamp(1.35rem, 2.5vw, 1.7rem); font-weight: 750; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.card p { font-size: 0.85rem; }
+.card small, .loading { font-size: 0.72rem; color: var(--muted); }
+.card [role='alert'] { font-size: 0.8rem; }
+.card button { margin-top: 0.5rem; min-height: 2.75rem; font-size: 0.8rem; }
+@media (max-width: 520px) { .card { min-width: 0; width: 100%; max-width: none; } }

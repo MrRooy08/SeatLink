@@ -3,7 +3,9 @@ import './Icon.css'
 
 const paths = {
   checkout: <><path d="M3 5h18v14H3zM3 9h18M7 13h4M7 16h7" /></>,
+  store: <><path d="m3 8 2-5h14l2 5v3a3 3 0 0 1-4 2 3 3 0 0 1-5 0 3 3 0 0 1-5 0 3 3 0 0 1-4-2zM5 14v7h14v-7M10 21v-6h4v6M3 8h18" /></>,
   seats: <><path d="M6 4v9h12V4M4 10v7h16v-7M6 17v4M18 17v4M9 4h6" /></>,
+  person: <><circle cx="12" cy="7" r="4" /><path d="M4 21v-2a8 8 0 0 1 16 0v2" /></>,
   history: <><path d="M3 10a9 9 0 1 1 2 8M3 4v6h6M12 7v5l3 2" /></>,
   display: <><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8M12 17v4" /></>,
   cart: <><path d="M2 3h3l3 12h11l3-8H6" /><circle cx="9" cy="20" r="1" /><circle cx="18" cy="20" r="1" /></>,

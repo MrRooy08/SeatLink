@@ -2,6 +2,8 @@ import type { SalesSnapshot } from '../../database.types'
 import { formatMoney } from '../../sales-data'
 import { countdown } from './checkout-state'
 import Icon from '../../components/Icon'
+import SeatMap from '../seats/SeatMap'
+import { currentOrderSeatIds } from '../seats/order-seat-map'
 
 export default function ResultStep({ snapshot, now, disabled, start }: {
   snapshot: SalesSnapshot; now: number; disabled: boolean; start: () => void
@@ -17,7 +19,9 @@ export default function ResultStep({ snapshot, now, disabled, start }: {
     {order.status === 'PAID_REVIEW' && <p role="alert">Payment was recorded. Review the exception in Order history and arrange assistance for the customer.</p>}
     <ul>{allocations.map((seat) => <li key={seat.id}>Table {seat.table_number} / Seat {seat.label} ·
       {countdown(seat.expires_at, now)} remaining · Ends {new Date(seat.expires_at).toLocaleTimeString()}</li>)}</ul>
-    {order.status === 'PAID' && !allocations.length && <p>This order’s seat-use sessions have ended.</p>}
+    {!order.selected_seat_ids.length && <p>No seats selected</p>}
+    {order.status === 'PAID' && !allocations.length && order.selected_seat_ids.length > 0 && <p>This order’s seat-use sessions have ended.</p>}
+    {allocations.length > 0 && <SeatMap tables={snapshot.tables} selectedIds={currentOrderSeatIds(snapshot)} />}
     <button type="button" className="primary" disabled={disabled} onClick={start}>Start new order</button>
   </section>
 }

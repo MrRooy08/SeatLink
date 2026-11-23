@@ -19,6 +19,6 @@ export default function PaymentQr({ mode, text, imageUrl, reference, amount, cur
     <p>Order {reference}</p>
     <span className="state-badge pending"><Icon name="timer" />Waiting for payment</span>
     <p className="qr-expiry">{mode === 'MOCK' || providerDeadline ? 'QR expires' : 'QR display ends'} {new Date(providerDeadline ?? deadline).toLocaleTimeString()}</p>
-    {providerDeadline && Date.parse(providerDeadline) > Date.parse(deadline) && <p className="qr-expiry">Display ends with the seat reservation at {new Date(deadline).toLocaleTimeString()}.</p>}
+    {providerDeadline && Date.parse(providerDeadline) > Date.parse(deadline) && <p className="qr-expiry">Display ends with the checkout session at {new Date(deadline).toLocaleTimeString()}.</p>}
   </section>
 }

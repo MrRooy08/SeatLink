@@ -1,0 +1,6 @@
+.review { max-width: 1120px; margin: 1rem auto; padding: 1rem; }
+.review h1 { font-size: 1.65rem; }
+.review > p { margin-top: 0.5rem; color: var(--muted); }
+.comparison { display: grid; gap: 1.5rem; margin-top: 1.5rem; }
+.comparison h2 { font-size: 1rem; }
+@media (min-width: 1600px) { .review { max-width: 1520px; } .comparison { grid-template-columns: 1fr 1fr; } }

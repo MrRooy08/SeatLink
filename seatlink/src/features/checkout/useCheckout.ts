@@ -120,11 +120,12 @@ export function useCheckout(client: SeatLinkClient, snapshot: SalesSnapshot, bra
     })
   }
 
-  function reserve() {
-    if (!order || selected.length < 1 || selected.length > 4 || changed) return
+  function reserveSeats(seatIds: string[]) {
+    if (!order || seatIds.length > 4 || (changed && step === 'SEATS')) return
     void run(async () => {
       await selectionQueue.current.catch(() => {})
-      await checkoutOperation(client, 'confirm_order_seats', { p_order_id: order.id, p_revision: order.revision, p_seat_ids: selected })
+      await checkoutOperation(client, 'confirm_order_seats', { p_order_id: order.id, p_revision: order.revision, p_seat_ids: seatIds })
+      if (mounted.current) setSelected(seatIds)
     })
   }
 
@@ -141,6 +142,7 @@ export function useCheckout(client: SeatLinkClient, snapshot: SalesSnapshot, bra
 
   return {
     cart, setCart, selected, setSelected, step, working, error: error || previewError,
-    dirty, valid, changed, previewTotal, previewCurrency, continueToSeats, reserve, reloadCart, run,
+    dirty, valid, changed, previewTotal, previewCurrency, continueToSeats,
+    reserve: () => reserveSeats(selected), skipSeats: () => reserveSeats([]), reloadCart, run,
   }
 }

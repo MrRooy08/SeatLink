@@ -29,6 +29,8 @@ beforeAll(async () => {
   await db.exec(sql('../supabase/migrations/20261118000600_cash_and_sandbox_payments.sql'))
   await db.exec(sql('../supabase/migrations/20261118000700_guided_display.sql'))
   await db.exec(sql('../supabase/migrations/20261118000800_qr_confirmation_and_display.sql'))
+  await db.exec(sql('../supabase/migrations/20261123000000_optional_seats.sql'))
+  await db.exec(sql('../supabase/migrations/20261123000100_branches_and_daily_sales.sql'))
 }, 20_000)
 
 afterAll(async () => db.close())
@@ -51,6 +53,14 @@ it('validates guided checkout, cash, unresolved QR switching and verified provid
 
 it('reuses confirmed QR attempts and projects the same canonical QR to the paired display', async () => {
   await db.exec(sql('../supabase/tests/qr_confirmation.sql'))
+})
+
+it('completes zero-seat cash/QR orders, preserves timed seat use and safely skips reservations', async () => {
+  await db.exec(sql('../supabase/tests/optional_seats.sql'))
+})
+
+it('aggregates authorized branch-local gross sales across payment retries and day boundaries', async () => {
+  await db.exec(sql('../supabase/tests/daily_sales.sql'))
 })
 
 it('seeds two branches with complete four-seat tables and preserves existing seat state on rerun', async () => {
@@ -85,4 +95,6 @@ it('seeds labelled sample menu items idempotently while preserving existing pric
     from public.menu_items where is_demo`)
   expect(rows).toEqual([{ items: 10, preserved: 2 }])
 })
+
+
 

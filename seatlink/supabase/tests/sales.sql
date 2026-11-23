@@ -137,18 +137,18 @@ $cmd$, 'permission denied');
 
 -- Reject zero, duplicate, five and cross-branch seat selections.
 select pg_temp.expect_error($cmd$
-  select public.confirm_order_seats('c6000000-0000-4000-8000-000000000060', 1, '{}')
-$cmd$, 'one to four distinct');
+  select public.confirm_order_seats('c6000000-0000-4000-8000-000000000060', 1, null)
+$cmd$, 'zero to four distinct');
 select pg_temp.expect_error($cmd$
   select public.confirm_order_seats('c6000000-0000-4000-8000-000000000060', 1,
     array['c6000000-0000-4000-8000-000000000050','c6000000-0000-4000-8000-000000000050']::uuid[])
-$cmd$, 'one to four distinct');
+$cmd$, 'zero to four distinct');
 select pg_temp.expect_error($cmd$
   select public.confirm_order_seats('c6000000-0000-4000-8000-000000000060', 1,
     array['c6000000-0000-4000-8000-000000000050','c6000000-0000-4000-8000-000000000051',
     'c6000000-0000-4000-8000-000000000052','c6000000-0000-4000-8000-000000000053',
     'c6000000-0000-4000-8000-000000000054']::uuid[])
-$cmd$, 'one to four distinct');
+$cmd$, 'zero to four distinct');
 select pg_temp.expect_error($cmd$
   select public.confirm_order_seats('c6000000-0000-4000-8000-000000000060', 1,
     array['c6000000-0000-4000-8000-000000000050','c6000000-0000-4000-8000-000000000054']::uuid[])

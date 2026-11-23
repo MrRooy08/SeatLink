@@ -5,8 +5,7 @@ import PaymentQr from '../checkout/PaymentQr'
 import Icon from '../../components/Icon'
 import { useDisplay } from './useDisplay'
 import './CustomerDisplay.css'
-
-const statusLabels = { AVAILABLE: '✓ Available', LOCKED: '◷ Reserved', UNAVAILABLE: '⊘ In use' }
+import SeatMap from '../seats/SeatMap'
 
 export default function CustomerDisplay() {
   const [client] = useState(createDisplayClient)
@@ -53,6 +52,7 @@ export default function CustomerDisplay() {
           <ul>{order.items.map((item) => <li key={item.name}><span>{item.quantity} × {item.name}</span>
             <span>{formatMoney(item.unit_price_minor * item.quantity, order.currency)}</span></li>)}</ul>
           <p className="display-total">Total {formatMoney(order.total_minor, order.currency)}</p>
+          {!order.selected_seats.length && <p>No seats selected</p>}
           {order.selected_seats.length > 0 && order.status !== 'PAID' && <p>{order.status === 'PAID_REVIEW' ? 'Previously selected seats' : 'Selected seats'} {order.selected_seats.map((seat) =>
             `Table ${seat.table_number} / ${seat.label}`).join(', ')}</p>}
           {order.status === 'DRAFT' && <p>{order.checkout_step === 'SEATS' ? 'The seller is selecting your seats.' : 'The seller is preparing your order.'}</p>}
@@ -68,8 +68,8 @@ export default function CustomerDisplay() {
             <p>{stale ? 'Waiting for a current payment QR.' : 'Waiting for the owner to generate or renew the payment QR.'}</p>}
           {(order.status === 'EXPIRED' || sessionExpired) && <p role="status">The order session has expired. Please ask the owner for assistance.</p>}
           {order.status === 'CANCELLED' && <p role="status">This order was cancelled.</p>}
-          {order.status === 'PAID' && <p role="status" className="display-success with-icon"><Icon name="success" />Payment confirmed. Your seat-use period started when payment was confirmed.</p>}
-          {order.status === 'PAID' && !order.allocations.length && <p>Your seat-use sessions have ended.</p>}
+          {order.status === 'PAID' && <p role="status" className="display-success with-icon"><Icon name="success" />Payment confirmed.{order.allocations.length > 0 ? ' Your seat-use period started when payment was confirmed.' : ''}</p>}
+          {order.status === 'PAID' && !order.allocations.length && order.selected_seats.length > 0 && <p>Your seat-use sessions have ended.</p>}
           {order.status === 'PAID_REVIEW' && <p role="alert" className="with-icon"><Icon name="warning" />Payment received. Please ask the owner for seating assistance.</p>}
           {order.allocations.map((allocation) => <p key={`${allocation.table_number}-${allocation.label}`}>
             Table {allocation.table_number} / Seat {allocation.label} · Use until {new Date(allocation.expires_at).toLocaleTimeString()}
@@ -78,12 +78,10 @@ export default function CustomerDisplay() {
       )}
       <section aria-label="Customer seat availability">
         <h2>{seats.filter((seat) => seat.status === 'AVAILABLE').length} of {seats.length} seats available</h2>
-        <div className="display-tables">{data.tables.map((table) => <article key={table.table_number}>
-          <h3>Table {table.table_number}</h3>
-          <ul>{table.seats.map((seat) => <li key={seat.label} className={`display-seat-${seat.status.toLowerCase()}`}>
-            <strong>Seat {seat.label}</strong><span>{statusLabels[seat.status]}</span>
-          </li>)}</ul>
-        </article>)}</div>
+        <SeatMap tables={data.tables.map(table => ({ ...table, seats: table.seats.map(seat => ({ ...seat,
+          current_order: seat.current_order ?? (!!order && ['DRAFT','PENDING'].includes(order.status) &&
+            order.selected_seats.some(selected => selected.table_number === table.table_number && selected.label === seat.label)),
+        })) }))} />
       </section>
     </main>
   )

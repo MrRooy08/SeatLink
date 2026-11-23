@@ -8,12 +8,13 @@ import { useSession } from './use-session'
 import './App.css'
 import CustomerDisplay from './features/display/CustomerDisplay'
 
-function SignIn({ client }: { client: SeatLinkClient }) {
+function SignIn({ client, onLoginAttempt }: { client: SeatLinkClient; onLoginAttempt: () => void }) {
   const [working, setWorking] = useState(false)
   const [message, setMessage] = useState('')
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    onLoginAttempt()
     const fields = new FormData(event.currentTarget)
     const email = String(fields.get('email')).trim()
     const password = String(fields.get('password'))
@@ -55,6 +56,7 @@ function Workspace({ client }: { client: SeatLinkClient }) {
   const { result, retry } = useSession(client)
   const session = result && 'session' in result ? result.session : null
   const [signingOut, setSigningOut] = useState(false)
+  const [freshLogin, setFreshLogin] = useState(false)
   const [signOutFailedFor, setSignOutFailedFor] = useState<string>()
   const metadata = session?.user.user_metadata
   const displayName = metadata?.display_name ?? metadata?.full_name
@@ -95,13 +97,13 @@ function Workspace({ client }: { client: SeatLinkClient }) {
             <button type="button" onClick={retry}>Retry</button>
           </div>
         )}
-        {result && 'session' in result && !session && <SignIn client={client} />}
+        {result && 'session' in result && !session && <SignIn client={client} onLoginAttempt={() => setFreshLogin(true)} />}
         {session && (
           <>
             {signOutFailedFor === session.user.id && (
               <p className="notice" role="alert">Couldn’t sign out. Check your connection and try again.</p>
             )}
-            <Owner key={session.user.id} client={client} />
+            <Owner key={session.user.id} client={client} freshLogin={freshLogin} />
           </>
         )}
       </main>

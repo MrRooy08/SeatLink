@@ -72,6 +72,30 @@ Open [the owner screen](http://127.0.0.1:5173/). Local and hosted Supabase have 
 
 ## Owner workflow
 
+### Branch selection and today’s sales
+
+On a fresh password login, a single accessible branch is selected automatically; multiple branches require the branch-card dialog even if the sign-in URL contained an old selection. A restored session keeps a valid `?branch=...` selection on refresh. **Switch branch** reopens the dialog. It shows authorised branch names, a store icon and optional short addresses, with search at six or more branches and a scrollable list. Native radio controls support keyboard selection; Tab/Shift+Tab wrap inside the dialog, Escape/Cancel return focus to the switch button, and the first required selection cannot be dismissed. No-access users keep the existing clear empty state. Unsaved carts, seat selections, pending payments and in-flight checkout requests retain their existing switch safeguards, including browser-history navigation.
+
+Apply **`20261123000100_branches_and_daily_sales.sql` before deploying this UI**. It adds nullable `branches.address`, `branches.currency`, a validated IANA `branches.timezone` (default **Asia/Singapore**), and the authenticated `read_branch_daily_sales` aggregate. Currency is inferred only from unambiguous existing menu/order data. A branch without a configured currency produces an error, not a zero-sales card. Administrators can configure metadata in SQL Editor:
+
+```sql
+update public.branches
+set address = 'SHORT_BRANCH_ADDRESS',
+    timezone = 'Asia/Singapore',
+    currency = 'SGD'
+where id = 'YOUR_BRANCH_UUID'::uuid;
+```
+
+**Today’s sales** is a private, branch-wide **gross paid-order sales** metric, not a sum of all money received. It counts each order once through its canonical `paid_attempt_id` and that payment’s `succeeded_at`, from the branch’s local midnight inclusive to the next local midnight exclusive. Date arithmetic handles 23-/25-hour daylight-saving days. It includes authorised cash completion and verified provider QR completion, including zero-seat orders. It excludes development MOCK payments, unsuccessful/unpaid orders, cancelled-before-payment orders, and late unassigned payments flagged `LATE_PAYMENT`. Late receipts remain visible in owner review rather than completed sales. An extra/duplicate payment does not inflate the original order’s revenue or remove its original sale. Seat release does not affect the total. Counted SANDBOX QR payments are explicitly labelled as test data.
+
+There are no refund records or refund-processing operations in the current schema, so this card is **gross**, with no refund deductions; it is not labelled net sales. Refund notes/follow-up text are not financial records. Mixed paid currencies within the selected day fail explicitly instead of being added together or silently excluded.
+
+Aggregation runs in PostgreSQL with explicit owner/branch authorisation; only aggregate fields are returned, never a download of order history. Anonymous/customer-display access is denied, and paired projections do not include sales figures. The amount uses exact decimal minor-unit text and BigInt formatting so a large daily sum does not lose cents. A separate `features/daily-sales` service/hook/card provides loading, error/retry and genuine zero states; responses from another branch are rejected and previous requests are aborted on branch changes. The card refreshes after payment success, branch changes, paid-order Realtime events, local midnight, reconnect/visibility recovery and a 60-second visible-tab fallback.
+
+Branch UI/state lives in `features/branches`, with colocated CSS Modules; `Owner` remains a small coordinator. `useQuery` now exposes a stable retry callback so payment refresh effects do not cause request loops. No additional environment file is needed: `.env.local` remains unchanged. The new migration has not been applied to the hosted project by this task.
+
+Verification passed build/TypeScript, lint, 82 standard tests and 10 native PostgreSQL tests. Coverage includes one-/multi-/zero-branch login, fresh versus restored-session selection, long-list search, focus wrapping/return, protected switching, stale sales responses, post-payment aggregate refresh, cash/verified-QR and zero-seat totals, duplicate/late payments, seat release, branch isolation, exact midnight and DST boundaries, and anonymous denial. Local browser fixtures at `/tests/branch-sales-review.html` verify desktop and 390px layouts and contain no real payment data or Supabase requests. Hosted deployment, provider payments and live hosted Realtime delivery remain unverified.
+
 ### Hosted menu seed without Docker
 
 The hosted seed reads the existing `.env.local` and uses your Supabase CLI login for privileged SQL. Use an intended demo/development project. Confirm its reference matches the Project URL in `.env.local`, then preview and run:
@@ -89,11 +113,25 @@ The preview makes no network request. The execution runs SQL against that explic
 1. Sign in and select a branch. A single authorised branch opens automatically.
 2. Add any available food or drink. Change quantities and remove items as needed.
 3. Choose **Continue to seats**. PostgreSQL validates menu availability, snapshots names and prices, and calculates the authoritative total. Failed requests retain the cart. Manual draft saving is no longer required.
-4. Select one to four AVAILABLE seats. One purchase qualifies for up to four seats, regardless of item type or quantity. Selecting is local until confirmation.
-5. Choose **Confirm seats**. The database acquires the entire selection atomically, starts the fixed five-minute reservation, and opens Payment. Conflicts identify seats to replace. **Back to menu** is available before reservation.
+4. Optionally select one to four AVAILABLE seats, or choose **Continue without seats**. Every order requires at least one purchased item; seats are independent of item type or quantity. Selecting is local until confirmation.
+5. **Confirm seats** reserves the entire selection atomically and opens Payment. **Continue without seats** clears selection and opens Payment without seat locks. Both start the same five-minute checkout session. Conflicts identify seats to replace. **Back to menu** is available before continuing.
 6. Select the **Cash** or **QR payment** card. These are native radio controls with keyboard support and a visible selected state. Selecting or switching never marks paid or changes the reservation deadline. For Cash, enter a sufficient amount and choose **Confirm** only after receiving it. For QR, **Confirm** creates or reuses the payment QR. **Processing...** prevents repeated submissions while the request runs. QR generation never marks the order paid.
-7. After verified payment, the server marks seats UNAVAILABLE and starts ten minutes of use. The Result step shows the order reference, method, total, seats and expiry. **Active seats** contains the separate release controls.
-8. Choose **Start new order** after the result. Earlier paid seats keep their original deadlines. To change a reserved purchase, explicitly choose **Cancel and start again** and confirm that its seats will be released. The cancelled order and payment records remain stored.
+7. After verified payment, only allocated seats become UNAVAILABLE and receive ten minutes of use. A zero-seat order completes payment with no seat allocations or seat-use timers. Both screens show **No seats selected**. The Result step shows reference, method, total and any allocated seats/expiry. **Active seats** contains separate release controls.
+8. Choose **Start new order** after the result. Earlier paid seats keep their deadlines. At Payment, **Continue without seats** can explicitly release this order's pending seat locks while preserving items, payment attempts and the existing checkout deadline. To change purchased items or choose replacement seats after reservation, use **Cancel and start again**. The cancelled order and payment records remain stored.
+
+### Optional seats and shared food-court map
+
+Migration `20261123000000_optional_seats.sql` must be applied before deploying the optional-seat frontend. It permits 0–4 pending seats, keeps item/owner/branch/revision validation, preserves the five-minute session, and safely clears only locks belonging to the skipped order. Cash, mock QR and trusted sandbox-result reconciliation share the updated payment operation. Zero-seat success produces no `seat_use_sessions` rows. Duplicate/late results, unresolved QR protection and paid-seat ownership rules remain enforced. Skipping a paid/expired order is rejected; retries of an already skipped pending order are safe.
+
+`features/seats/SeatMap.tsx` and its colocated CSS Module provide the shared owner/customer presentation. Actual table/seat IDs and labels are retained. Existing one-to-four-seat configurations render around a central table shape. Owner selection uses labelled native toggle buttons with Enter/Space support; customer maps contain no selection controls. White/green available seats, dark-green selected seats, amber clock badges and grey occupied/person states include a concise legend. This order's reserved/occupied seats retain their outline/checkmark and their real status. Paid highlights follow active seat-use sessions rather than historical selection, so a seat reassigned to someone else is not marked as belonging to the old order.
+
+The compact presentation uses 220–260px table tiles, central `T1`/`T2` labels and 52×52px chair controls labelled only `A`–`D`. The shared legend explains availability, selection, awaiting payment, occupancy and current-order outlines. Full table/seat/status details are exposed on hover/focus and through accessible descriptions. A selected available chair is dark green; current-order reserved/occupied chairs retain their actual amber/grey status with a separate green outline/checkmark. Labels keep stable compass positions (A north, B east, C south, D west), including partially configured tables. Customer maps are read-only with larger letter labels. No scaling transform or checkout/payment/timer change is involved.
+
+For development-only comparison, open [the seat-map review page](http://localhost:5173/tests/seat-map-review.html) while Vite is running. Its fixture data makes no Supabase calls. The owner/customer comparison exists only in that review entry and is not included in the default production build. Presentation verification passed build, TypeScript, lint and 69 standard tests. Browser measurements confirmed four columns at 1280px, three at 900px, no overflow at 390px, 52px interactive targets, and larger customer labels (17.6px versus 15.2px). Enter/Space, focus descriptions and partial-table positioning are covered. No new Supabase migration is required for this presentation refinement; the existing optional-seat migration requirement still applies.
+
+Customer projections add table/seat IDs and a station-scoped `current_order` flag. They retain the paired token's branch restriction and expose no other order IDs or owner controls. Draft selection changes, skip, locks and payment updates use the existing authoritative projection/broadcast recovery mechanism.
+
+Verification on 23 November 2026 passed build/TypeScript, lint, 68 standard tests and 9 native PostgreSQL tests. Coverage includes cash with 0–4 seats, zero-seat mock QR and synthetic verified-provider success, fifth-seat rejection, expired/paid skips, safe release of only this order's locks, no zero-seat timers, paired-station highlight isolation, and a real concurrent skip/cash transaction. React tests cover both displays and keyboard interaction. A database-free browser fixture verified the shared map on desktop and at 390px width with no horizontal overflow; temporary review files were removed. Hosted migrations/deployment, live pairing updates and actual provider payments were not exercised for this change. Only the existing single frontend port 5173 was used; `.env.local` was unchanged.
 
 Cart previews save after 600 ms of inactivity and seat previews after 200 ms. Refresh restores acknowledged previews, the active step, chosen payment method and server deadlines. An edit interrupted before acknowledgement may be lost. Wait for cart changes to save and clear seat selections before changing branches. A pending checkout must be cancelled or expire first. Closing the browser leaves server timers running.
 
@@ -133,7 +171,7 @@ Cash is blocked while any earlier QR attempt remains unresolved, including hidde
 
 The adapter is `supabase/functions/_shared/two-c2p.ts`; the trusted HTTP endpoint is `supabase/functions/qr-payment/index.ts`. Only SANDBOX is supported. LIVE configuration is rejected and the provider host is fixed to the sandbox. Synthetic contract fixtures verify request shapes and signatures; no actual 2C2P payment was attempted.
 
-For an explicitly chosen development project, apply migrations through `20261118000800`, then configure the following **Edge Function secrets** in Supabase Dashboard. Provider secrets never belong in `VITE_*` variables or the browser. Keep using the existing `.env.local` for frontend configuration; no additional env file is needed.
+For an explicitly chosen development project, apply migrations through `20261123000000`, then configure the following **Edge Function secrets** in Supabase Dashboard. Provider secrets never belong in `VITE_*` variables or the browser. Keep using the existing `.env.local` for frontend configuration; no additional env file is needed.
 
 | Secret | Value |
 | --- | --- |
@@ -267,6 +305,8 @@ The new migrations are additive and preserve application data.
 - `20261118000600_cash_and_sandbox_payments.sql` adds transactional cash receipts and trusted sandbox reconciliation.
 - `20261118000700_guided_display.sql` adds guided display projections, heartbeat and once-only sandbox creation dispatch.
 - `20261118000800_qr_confirmation_and_display.sql` adds confirmation reuse, canonical owner/display attempts, QR diagnostics and provider expiry mapping.
+- `20261123000000_optional_seats.sql` adds zero-seat checkout/payment, safe skip-release and station-scoped shared-map projections.
+- `20261123000100_branches_and_daily_sales.sql` adds branch address/timezone/currency and owner-only daily gross paid-order aggregation.
 
 The existing Cron job calls `public.expire_order_sessions()` every 30 seconds. The upgraded function also expires paid seat-use sessions and payment attempts. It rechecks the current session ID and deadline and skips busy branches for retry on the next pass. Owner and display reads also recover expired records before returning data. A periodic pass can be delayed by load, so stored status changes occur on the next successful pass or relevant operation.
 

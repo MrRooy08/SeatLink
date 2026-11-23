@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 type Result<T> = { data: T } | { error: true }
 
 export function useQuery<T>(load: (signal: AbortSignal) => Promise<T>) {
   const [attempt, setAttempt] = useState(0)
+  const retry = useCallback(() => setAttempt(previous => previous + 1), [])
   const [settled, setSettled] = useState<{ attempt: number; load: typeof load; result: Result<T> }>()
 
   useEffect(() => {
@@ -21,6 +22,6 @@ export function useQuery<T>(load: (signal: AbortSignal) => Promise<T>) {
 
   return {
     result: settled?.attempt === attempt && settled.load === load ? settled.result : undefined,
-    retry: () => setAttempt((previous) => previous + 1),
+    retry,
   }
 }
