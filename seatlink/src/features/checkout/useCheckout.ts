@@ -4,6 +4,7 @@ import type { SeatLinkClient } from '../../seat-data'
 import { salesError } from '../../sales-data'
 import { checkoutOperation } from './checkout-service'
 import { checkoutStep } from './checkout-state'
+import { validQuantities } from './quantity'
 
 export type Cart = Record<string, number>
 const signature = (cart: Cart) => JSON.stringify(Object.entries(cart).sort())
@@ -18,6 +19,9 @@ export function useCheckout(client: SeatLinkClient, snapshot: SalesSnapshot, bra
   const [selected, setSelected] = useState<string[]>(order?.draft_seat_ids ?? [])
   const [working, setWorking] = useState(false)
   const [error, setError] = useState('')
+  const [invalidInputs, setInvalidInputs] = useState<string[]>([])
+  const setQuantityValidity = useCallback((id: string, valid: boolean) => setInvalidInputs(previous =>
+    valid ? previous.includes(id) ? previous.filter(entry => entry !== id) : previous : previous.includes(id) ? previous : [...previous,id]), [])
   const [previewError, setPreviewError] = useState('')
   const [baseRevision, setBaseRevision] = useState(order?.revision ?? 0)
   const [savedSignature, setSavedSignature] = useState(() => signature(cart))
@@ -31,10 +35,10 @@ export function useCheckout(client: SeatLinkClient, snapshot: SalesSnapshot, bra
   const id = useRef(order?.id ?? crypto.randomUUID())
   const submission = useRef<{ signature: string; id: string } | undefined>(undefined)
   const cartSignature = signature(cart)
-  const dirty = cartSignature !== savedSignature
+  const dirty = cartSignature !== savedSignature || invalidInputs.length > 0
   const changed = !!order && order.revision !== baseRevision
-  const valid = Object.keys(cart).length > 0 && Object.entries(cart).every(([itemId, quantity]) =>
-    Number.isInteger(quantity) && quantity > 0 && quantity <= 2147483647 &&
+  const valid = !invalidInputs.length && validQuantities(cart, snapshot.menu) && Object.keys(cart).length > 0 && Object.entries(cart).every(([itemId, quantity]) =>
+    Number.isInteger(quantity) && quantity > 0 && quantity <= 50 &&
     snapshot.menu.some((item) => item.id === itemId && item.available))
   const stationId = snapshot.station?.id
   const orderId = order?.id
@@ -73,12 +77,12 @@ export function useCheckout(client: SeatLinkClient, snapshot: SalesSnapshot, bra
   }, [client, stationId])
 
   useEffect(() => {
-    if (step !== 'MENU' || !dirty || working || Object.values(cart).some((quantity) => !Number.isInteger(quantity) || quantity <= 0)) return
+    if (step !== 'MENU' || !dirty || working || invalidInputs.length || !validQuantities(cart,snapshot.menu)) return
     const timer = window.setTimeout(() => {
       void persistPreview(cart).catch((failure) => { if (mounted.current) setPreviewError(salesError(failure)) })
     }, 600)
     return () => window.clearTimeout(timer)
-  }, [cart, dirty, persistPreview, step, working])
+  }, [cart, dirty, persistPreview, step, working, invalidInputs.length, snapshot.menu])
 
   useEffect(() => {
     if (step !== 'SEATS' || !orderId || working) return
@@ -141,7 +145,7 @@ export function useCheckout(client: SeatLinkClient, snapshot: SalesSnapshot, bra
   }
 
   return {
-    cart, setCart, selected, setSelected, step, working, error: error || previewError,
+    cart, setCart, selected, setSelected, step, working, error: error || previewError, setQuantityValidity,
     dirty, valid, changed, previewTotal, previewCurrency, continueToSeats,
     reserve: () => reserveSeats(selected), skipSeats: () => reserveSeats([]), reloadCart, run,
   }

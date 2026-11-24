@@ -31,6 +31,9 @@ beforeAll(async () => {
   await db.exec(sql('../supabase/migrations/20261118000800_qr_confirmation_and_display.sql'))
   await db.exec(sql('../supabase/migrations/20261123000000_optional_seats.sql'))
   await db.exec(sql('../supabase/migrations/20261123000100_branches_and_daily_sales.sql'))
+  await db.exec(sql('../supabase/migrations/20261123000200_seat_operations.sql'))
+  await db.exec(sql('../supabase/migrations/20261123000300_quantities_and_resubmit.sql'))
+  await db.exec(sql('../supabase/migrations/20261123000400_seat_presentation.sql'))
 }, 20_000)
 
 afterAll(async () => db.close())
@@ -98,3 +101,34 @@ it('seeds labelled sample menu items idempotently while preserving existing pric
 
 
 
+
+it('validates quantities, resubmission and standalone seat operations',async()=>{
+ const fixture=sql('../supabase/tests/guided_cash.sql').split('set local role authenticated;')[0]
+ await db.exec(fixture+sql('../supabase/tests/operations-body.sql'))
+})
+
+it('seeds linked development scenarios idempotently and cleans up only its own sessions',async()=>{
+ const fixture=sql('../supabase/tests/guided_cash.sql').split('set local role authenticated;')[0]
+ await db.exec(fixture+`
+ update public.development_settings set enabled=true;
+ insert into public.development_operators(user_id) values('c6000000-0000-4000-8000-000000000001');
+ update public.payment_runtime set mode='MOCK';
+ update public.branches set currency='SGD' where id='c6000000-0000-4000-8000-000000000020';
+ set local seatlink.fixture_branch='c6000000-0000-4000-8000-000000000020';
+ set local seatlink.fixture_owner='sales-owner-a@test.invalid';
+ set local seatlink.fixture_cleanup='off';
+ `)
+ const seed=sql('../supabase/dev/seat-scenarios.sql')
+ await db.exec(seed)
+ const before=(await db.query(`select id,started_at,expires_at from public.seat_use_sessions where branch_id='c6000000-0000-4000-8000-000000000020' order by id`)).rows
+ expect(before).toHaveLength(6)
+ await db.exec(seed)
+ expect((await db.query(`select id,started_at,expires_at from public.seat_use_sessions where branch_id='c6000000-0000-4000-8000-000000000020' order by id`)).rows).toEqual(before)
+ expect((await db.query(`select status,count(*)::integer as count from public.seats s join public.tables t on t.id=s.table_id where t.branch_id='c6000000-0000-4000-8000-000000000020' group by status order by status`)).rows).toEqual([
+  {status:'AVAILABLE',count:5},{status:'LOCKED',count:1},{status:'UNAVAILABLE',count:6},
+ ])
+ await db.exec("set local seatlink.fixture_cleanup='on';"+seed)
+ expect((await db.query(`select count(*)::integer as count from public.seat_use_sessions where branch_id='c6000000-0000-4000-8000-000000000020' and status='ACTIVE'`)).rows[0].count).toBe(0)
+ expect((await db.query(`select count(*)::integer as count from public.orders where branch_id='c6000000-0000-4000-8000-000000000020'`)).rows[0].count).toBe(2)
+ await db.exec('rollback')
+})

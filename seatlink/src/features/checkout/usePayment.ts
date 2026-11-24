@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import type { SalesSnapshot } from '../../database.types'
 import type { SeatLinkClient } from '../../seat-data'
 import { salesError } from '../../sales-data'
-import { checkoutOperation, qrFailure, sandboxPayment } from './checkout-service'
+import { checkoutOperation, qrFailure, qrErrors, sandboxPayment } from './checkout-service'
 import { parseMinorUnits } from './money'
 
 export function usePayment(client: SeatLinkClient, snapshot: SalesSnapshot, now: number, disabled: boolean, refresh: () => Promise<void>) {
@@ -30,7 +30,10 @@ export function usePayment(client: SeatLinkClient, snapshot: SalesSnapshot, now:
     if (busy || busyRef.current) return
     busyRef.current = true
     setWorking(true); setError(''); setNotice('')
-    try { await action() } catch (failure) { setError(salesError(failure)) }
+    try { await action() } catch (failure) {
+      const message = salesError(failure)
+      setError(Object.values(qrErrors).includes(message) ? 'QR unavailable. Check payment status or contact your administrator.' : message)
+    }
     finally { try { await refresh() } finally { setWorking(false); busyRef.current = false } }
   }
   function select(method: 'QR' | 'CASH') {

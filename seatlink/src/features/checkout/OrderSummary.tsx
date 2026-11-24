@@ -1,3 +1,4 @@
+import { seatReference } from '../seats/seat-labels'
 import type { SalesSnapshot } from '../../database.types'
 import { formatMoney } from '../../sales-data'
 import type { useCheckout } from './useCheckout'
@@ -18,14 +19,14 @@ export default function OrderSummary({ snapshot, checkout, now }: {
   })) : order?.items ?? []
   const seatIds = checkout.step === 'SEATS' ? checkout.selected : order?.selected_seat_ids ?? []
   const seats = snapshot.tables.flatMap((table) => table.seats.filter((seat) => seatIds.includes(seat.id))
-    .map((seat) => `Table ${table.table_number} / Seat ${seat.label}`))
+    .map((seat) => seatReference(table.table_number,seat.label)))
   const total = menuStep ? checkout.previewTotal : order?.total_minor
   const currency = menuStep ? checkout.previewCurrency : order?.currency
   const method = order?.paid_method ?? order?.payment_method
   const paid = order?.status === 'PAID'
   const problem = ['PAID_REVIEW', 'EXPIRED', 'CANCELLED'].includes(order?.status ?? '')
   const status = paid ? 'Payment confirmed' : order?.status === 'PAID_REVIEW' ? 'Owner review required' :
-    order?.status === 'PENDING' ? 'Awaiting payment' : order?.status === 'EXPIRED' ? 'Reservation expired' :
+    order?.status === 'PENDING' ? 'Awaiting payment' : order?.status === 'EXPIRED' ? 'Checkout expired' :
     order?.status === 'CANCELLED' ? 'Order cancelled' : 'Order being prepared'
   return <aside className="order-summary" aria-labelledby="summary-title">
     <details open={expanded} onToggle={(event) => setExpanded(event.currentTarget.open)}>
@@ -41,7 +42,7 @@ export default function OrderSummary({ snapshot, checkout, now }: {
         <section className="summary-section"><h3 className="with-icon"><Icon name="seats" />{checkout.step === 'SEATS' ? 'Selected seats' : 'Seats'}</h3>
           <div className="seat-badges">{seats.length ? seats.map((seat) => <span className="seat-badge" key={seat}>{seat}</span>) : <span>No seats selected</span>}</div></section>
         <section className="summary-section"><h3 className="with-icon"><Icon name={method === 'CASH' ? 'cash' : 'qr'} />Payment method</h3>
-          <p>{method === 'CASH' ? 'Cash' : method === 'QR' ? 'QR payment' : 'Not selected'}</p>
+          <p>{method === 'CASH' ? 'Cash & Card' : method === 'QR' ? 'QR payment' : 'Not selected'}</p>
           <span className={`state-badge ${paid ? 'success' : problem ? 'error' : 'pending'}`}><Icon name={paid ? 'success' : problem ? 'warning' : 'timer'} />{status}</span></section>
         {order?.status === 'PENDING' && <div className="summary-countdown"><Icon name="timer" /><span>{order.selected_seat_ids.length ? 'Reservation remaining' : 'Checkout remaining'}</span><strong>{countdown(order.session_expires_at, now)}</strong></div>}
       </div>

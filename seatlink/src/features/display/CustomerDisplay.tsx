@@ -1,3 +1,4 @@
+import { seatReference } from '../seats/seat-labels'
 import { useEffect, useState } from 'react'
 import { createDisplayClient } from '../../supabase'
 import { formatMoney } from '../../sales-data'
@@ -49,15 +50,16 @@ export default function CustomerDisplay() {
       {!order ? <section className="display-current"><h2>Welcome</h2><p>Your order will appear here when the owner starts checkout.</p></section> : (
         <section className="display-current" aria-label="Current customer checkout">
           <h2>Your order</h2>
+          {['PAID','PAID_REVIEW'].includes(order.status) && ['MOCK','SANDBOX'].includes(order.payment_mode ?? '') && <small>Test payment · No real charge</small>}
           <ul>{order.items.map((item) => <li key={item.name}><span>{item.quantity} × {item.name}</span>
             <span>{formatMoney(item.unit_price_minor * item.quantity, order.currency)}</span></li>)}</ul>
           <p className="display-total">Total {formatMoney(order.total_minor, order.currency)}</p>
           {!order.selected_seats.length && <p>No seats selected</p>}
           {order.selected_seats.length > 0 && order.status !== 'PAID' && <p>{order.status === 'PAID_REVIEW' ? 'Previously selected seats' : 'Selected seats'} {order.selected_seats.map((seat) =>
-            `Table ${seat.table_number} / ${seat.label}`).join(', ')}</p>}
+            seatReference(seat.table_number,seat.label)).join(', ')}</p>}
           {order.status === 'DRAFT' && <p>{order.checkout_step === 'SEATS' ? 'The seller is selecting your seats.' : 'The seller is preparing your order.'}</p>}
           {order.status === 'PENDING' && !sessionExpired && <p>Complete payment before {new Date(order.session_expires_at!).toLocaleTimeString()}.</p>}
-          {order.payment_method && <p>Payment method {order.paid_method ?? order.payment_method}</p>}
+          {order.payment_method && <p>Payment method {(order.paid_method ?? order.payment_method) === 'CASH' ? 'Cash & Card' : 'QR payment'}</p>}
           {order.status === 'PENDING' && order.payment_method === 'CASH' && !sessionExpired && <p role="status" className="display-cash with-icon"><Icon name="cash" />Please pay at the counter.</p>}
           {showQr && <PaymentQr key={order.payment_attempt_id ?? order.qr_text ?? order.qr_image_url} customer
             mode={order.qr_text ? 'MOCK' : 'SANDBOX'} text={order.qr_text} imageUrl={order.qr_image_url}
@@ -72,7 +74,7 @@ export default function CustomerDisplay() {
           {order.status === 'PAID' && !order.allocations.length && order.selected_seats.length > 0 && <p>Your seat-use sessions have ended.</p>}
           {order.status === 'PAID_REVIEW' && <p role="alert" className="with-icon"><Icon name="warning" />Payment received. Please ask the owner for seating assistance.</p>}
           {order.allocations.map((allocation) => <p key={`${allocation.table_number}-${allocation.label}`}>
-            Table {allocation.table_number} / Seat {allocation.label} · Use until {new Date(allocation.expires_at).toLocaleTimeString()}
+            {seatReference(allocation.table_number,allocation.label)} · Use until {new Date(allocation.expires_at).toLocaleTimeString()}
           </p>)}
         </section>
       )}

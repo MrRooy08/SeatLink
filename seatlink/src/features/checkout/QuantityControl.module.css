@@ -1,0 +1,5 @@
+.control { display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; }
+.control button { min-width: 44px; min-height: 44px; padding: .35rem; }
+.control input { width: 3.6rem; min-height: 44px; text-align: center; padding: .3rem; margin: 0; }
+.control small { flex-basis: 100%; color: #913c28; }
+.label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

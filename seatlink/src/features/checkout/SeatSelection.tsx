@@ -1,9 +1,10 @@
+import { seatReference } from '../seats/seat-labels'
 import type { SalesSnapshot } from '../../database.types'
 import type { useCheckout } from './useCheckout'
 import SeatMap from '../seats/SeatMap'
 
-export default function SeatSelection({ snapshot, checkout, disabled, back }: {
-  snapshot: SalesSnapshot; checkout: ReturnType<typeof useCheckout>; disabled: boolean; back: () => void
+export default function SeatSelection({ snapshot, checkout, disabled, back, now }: {
+  snapshot: SalesSnapshot; checkout: ReturnType<typeof useCheckout>; disabled: boolean; back: () => void; now: number
 }) {
   const { selected, setSelected } = checkout
   const seats = snapshot.tables.flatMap((table) => table.seats.map((seat) => ({ ...seat, table_number: table.table_number })))
@@ -22,10 +23,10 @@ export default function SeatSelection({ snapshot, checkout, disabled, back }: {
     {conflict && <p role="alert">A selected seat is no longer available. Remove it from your selection and choose a replacement.</p>}
     <ul className="selected-seat-list">{selected.map((id) => {
       const seat = seats.find((item) => item.id === id)
-      return <li key={id}>{seat ? `Table ${seat.table_number} / Seat ${seat.label}` : 'Seat no longer present'}
-        <button type="button" disabled={busy} onClick={() => toggle(id)}>Remove selected seat {seat?.label}</button></li>
+      return <li key={id}>{seat ? seatReference(seat.table_number,seat.label) : 'Seat no longer present'}
+        <button type="button" disabled={busy} onClick={() => toggle(id)}>Remove {seat ? seatReference(seat.table_number,seat.label) : 'missing seat'}</button></li>
     })}</ul>
-    <SeatMap tables={snapshot.tables} selectedIds={selected} onToggle={toggle} disabled={busy} />
+    <SeatMap tables={snapshot.tables} selectedIds={selected} onToggle={toggle} disabled={busy} ownerNow={now} stale={disabled} />
     <div className="action-row">
       <button type="button" disabled={busy} onClick={back}>Back to menu</button>
       <button type="button" disabled={busy || checkout.changed} onClick={checkout.skipSeats}>Continue without seats</button>

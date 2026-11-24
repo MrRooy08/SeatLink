@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { SalesSnapshot } from '../../database.types'
 import type { SeatLinkClient } from '../../seat-data'
 import type { useCheckout } from './useCheckout'
@@ -12,11 +12,12 @@ import OrderSummary from './OrderSummary'
 import './GuidedCheckout.css'
 import Icon from '../../components/Icon'
 
-export default function GuidedCheckout({ client, snapshot, checkout, now, disabled, refresh }: {
+export default function GuidedCheckout({ client, snapshot, checkout, now, disabled, refresh, openSettings }: {
   client: SeatLinkClient; snapshot: SalesSnapshot; checkout: ReturnType<typeof useCheckout>
-  now: number; disabled: boolean; refresh: () => Promise<void>
+  now: number; disabled: boolean; refresh: () => Promise<void>; openSettings?: () => void
 }) {
   const [cancel, setCancel] = useState(false)
+  const resubmitRequest = useRef(crypto.randomUUID())
   const stepIndex = checkoutSteps.findIndex((step) => step.id === checkout.step)
   const busy = disabled || checkout.working
   function start() {
@@ -31,11 +32,14 @@ export default function GuidedCheckout({ client, snapshot, checkout, now, disabl
     <div className="guided-layout">
       <div className="step-workspace">
         {checkout.step === 'MENU' && <MenuCart snapshot={snapshot} checkout={checkout} disabled={disabled} />}
-        {checkout.step === 'SEATS' && <SeatSelection snapshot={snapshot} checkout={checkout} disabled={disabled}
+        {checkout.step === 'SEATS' && <SeatSelection snapshot={snapshot} checkout={checkout} disabled={disabled} now={now}
           back={() => void checkout.run(() => checkoutOperation(client, 'change_draft_step', { p_order_id: snapshot.order!.id, p_step: 'MENU' }))} />}
         {checkout.step === 'PAYMENT' && <PaymentStep client={client} snapshot={snapshot} now={now}
-          disabled={busy} refresh={refresh} cancel={() => setCancel(true)} skipSeats={checkout.skipSeats} />}
+          disabled={busy} refresh={refresh} cancel={() => setCancel(true)} skipSeats={checkout.skipSeats} openSettings={openSettings} />}
         {checkout.step === 'RESULT' && <ResultStep snapshot={snapshot} now={now} disabled={busy} start={start} />}
+        {(snapshot.order?.status === 'EXPIRED' || snapshot.order?.status === 'PENDING' && Date.parse(snapshot.order.session_expires_at ?? '') <= now) &&
+          !snapshot.order.paid_attempt_id && <button type="button" className="primary" disabled={busy} onClick={() => void checkout.run(() =>
+            checkoutOperation(client,'resubmit_order',{p_order_id:snapshot.order!.id,p_request_id:resubmitRequest.current}))}>Resubmit Order</button>}
         {checkout.error && <p role="alert">{checkout.error}</p>}
         {cancel && <section className="confirmation-panel" role="region" aria-label="Cancel and start again">
           <h2>Release this reservation and start again?</h2>

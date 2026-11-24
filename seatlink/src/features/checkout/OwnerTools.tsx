@@ -1,21 +1,21 @@
 import { useState } from 'react'
-import type { SalesSnapshot, SeatUse } from '../../database.types'
+import type { SalesSnapshot } from '../../database.types'
 import type { SeatLinkClient } from '../../seat-data'
 import { formatMoney, salesError } from '../../sales-data'
 import { checkoutOperation } from './checkout-service'
 import './OwnerTools.css'
+import ActiveSeats from '../seats/ActiveSeats'
+import { seatReference } from '../seats/seat-labels'
 
 export default function OwnerTools({
-  client, snapshot, now, disabled, refresh, view,
+  client, snapshot, now, disabled, refresh, view, branchId,
 }: {
-  client: SeatLinkClient; snapshot: SalesSnapshot; now: number; disabled: boolean; refresh: () => Promise<void>; view: 'ACTIVE_SEATS' | 'HISTORY' | 'DISPLAY' | 'DEVELOPMENT'
+  client: SeatLinkClient; snapshot: SalesSnapshot; now: number; disabled: boolean; refresh: () => Promise<void>; branchId: string; view: 'ACTIVE_SEATS' | 'HISTORY' | 'DISPLAY' | 'DEVELOPMENT'
 }) {
   const [working, setWorking] = useState(false)
   const [error, setError] = useState('')
   const [displayLink, setDisplayLink] = useState('')
   const [attemptId, setAttemptId] = useState('')
-  const [selectedSessions, setSelectedSessions] = useState<string[]>([])
-  const [releasePreview, setReleasePreview] = useState<SeatUse[]>([])
   const [minutes, setMinutes] = useState('1')
   const [notes, setNotes] = useState<Record<string, string>>({})
   const attempts = snapshot.attempts ?? []
@@ -24,7 +24,6 @@ export default function OwnerTools({
   const canSimulate = view === 'DEVELOPMENT' && import.meta.env.DEV && snapshot.development_enabled
   const busy = disabled || working
   const chosenAttempt = allAttempts.find((attempt) => attempt.id === attemptId) ?? allAttempts[0]
-  const orderIds = [...new Set(allocations.map((allocation) => allocation.order_id))]
 
   async function run(action: () => Promise<unknown>) {
     if (busy) return
@@ -52,7 +51,8 @@ export default function OwnerTools({
       {view === 'DISPLAY' && snapshot.station && (
         <section className="checkout-panel" aria-labelledby="display-pairing-title">
           <h2 id="display-pairing-title">Customer display</h2>
-          <p>{snapshot.station.name}</p>
+          <details><summary>Connection diagnostics</summary><p>{snapshot.station.name}</p><p>Last display contact: {snapshot.display_last_seen_at ? new Date(snapshot.display_last_seen_at).toLocaleString() : 'None'}</p><button type="button" disabled={busy} onClick={() => void refresh()}>Refresh connection</button></details>
+          <details><summary>Payment settings</summary><p>QR mode: {snapshot.payment_mode ?? 'Unavailable'}</p><p>Configuration: {snapshot.qr_configuration ?? 'Unavailable'}</p></details>
           <button type="button" disabled={busy} onClick={() => void run(async () => {
             const token = await checkoutOperation(client, 'pair_customer_display', { p_station_id: snapshot.station!.id })
             const url = new URL('/display', window.location.origin)
@@ -94,58 +94,13 @@ export default function OwnerTools({
           const value = Number(minutes)
           if (!Number.isSafeInteger(value) || value <= 0 || !Number.isSafeInteger(value * 60)) { setError('Use positive whole minutes within safe numeric range.'); return }
           void run(() => checkoutOperation(client, 'simulate_extension', { p_session_id: allocation.id, p_request_id: crypto.randomUUID(), p_additional_seconds: value * 60 }))
-        }}>Extend Table {allocation.table_number} / Seat {allocation.label}</button>)}
+        }}>Extend {seatReference(allocation.table_number,allocation.label)}</button>)}
       </section>}
-      {view === 'ACTIVE_SEATS' && !allocations.length && <p className="notice">No active seat-use sessions in this branch.</p>}
       {view === 'HISTORY' && <section className="checkout-panel"><h2>Order history</h2>
-        <ul>{snapshot.history.map((item) => <li key={item.id}>Order {item.id.slice(0, 8)} · {item.status} · {formatMoney(item.total_minor, item.currency)}</li>)}</ul>
+        <ul>{snapshot.history.map((item) => <li key={item.id}>Order {item.id.slice(0, 8)} · {item.status} · {formatMoney(item.total_minor, item.currency)}{['MOCK','SANDBOX'].includes(item.payment_mode ?? '') ? ' · Test payment' : ''}</li>)}</ul>
         {!snapshot.history.length && <p>No completed orders yet.</p>}
       </section>}
-      {view === 'ACTIVE_SEATS' && allocations.length > 0 && (
-        <section className="checkout-panel" aria-labelledby="allocations-title">
-          <h2 id="allocations-title">Active seat use</h2>
-          {orderIds.map((id) => {
-            const group = allocations.filter((allocation) => allocation.order_id === id)
-            const checked = group.filter((allocation) => selectedSessions.includes(allocation.id))
-            return <div className="allocation-group" key={id}>
-              <h3>Order {id.slice(0, 8)}</h3>
-              {group.map((allocation) => <div className="allocation-row" key={allocation.id}>
-                <label><input type="checkbox" checked={selectedSessions.includes(allocation.id)} disabled={busy}
-                  onChange={(event) => setSelectedSessions((previous) => event.target.checked
-                    ? [...previous, allocation.id] : previous.filter((value) => value !== allocation.id))} />
-                  Table {allocation.table_number} / Seat {allocation.label}
-                </label>
-                <span>{Math.max(0, Math.ceil((Date.parse(allocation.expires_at) - now) / 1000))} seconds remaining</span>
-                <button type="button" disabled={busy} onClick={() => setReleasePreview([allocation])}>Release this seat</button>
-              </div>)}
-              <div className="action-row">
-                <button type="button" disabled={busy || !checked.length} onClick={() => setReleasePreview(checked)}>Release selected seats</button>
-                <button type="button" disabled={busy} onClick={() => setReleasePreview(group)}>Release all seats for this order</button>
-              </div>
-            </div>
-          })}
-        </section>
-      )}
-
-      {releasePreview.length > 0 && (
-        <section className="checkout-panel confirmation-panel" aria-labelledby="release-title">
-          <h2 id="release-title">Release these seats?</h2>
-          <ul>{releasePreview.map((allocation) => <li key={allocation.id}>
-            Table {allocation.table_number} / Seat {allocation.label}
-          </li>)}</ul>
-          <p>The payment and order stay in history.</p>
-          <div className="action-row">
-            <button type="button" disabled={busy} onClick={() => void run(async () => {
-              await checkoutOperation(client, 'release_seat_use', {
-                p_order_id: releasePreview[0].order_id, p_session_ids: releasePreview.map((allocation) => allocation.id),
-              })
-              setSelectedSessions((previous) => previous.filter((id) => !releasePreview.some((allocation) => allocation.id === id)))
-              setReleasePreview([])
-            })}>Confirm seat release</button>
-            <button type="button" disabled={working} onClick={() => setReleasePreview([])}>Keep seats</button>
-          </div>
-        </section>
-      )}
+      {view === 'ACTIVE_SEATS' && <ActiveSeats client={client} snapshot={snapshot} now={now} disabled={disabled} refresh={refresh} branchId={branchId} />}
 
       {view === 'HISTORY' && (snapshot.exceptions ?? []).length > 0 && (
         <section className="checkout-panel exception-panel" aria-labelledby="exceptions-title">

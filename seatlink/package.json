@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:postgres": "vitest run --config vitest.postgres.config.ts",
+    "seed:seats:dev": "node --env-file=.env.local scripts/seed-seat-scenarios.mjs",
     "seed:dev": "node --env-file-if-exists=.env.local scripts/seed-development.mjs",
     "seed:hosted:dev": "node --env-file=.env.local scripts/seed-hosted-development.mjs",
     "preview": "vite preview"

@@ -307,6 +307,7 @@ The new migrations are additive and preserve application data.
 - `20261118000800_qr_confirmation_and_display.sql` adds confirmation reuse, canonical owner/display attempts, QR diagnostics and provider expiry mapping.
 - `20261123000000_optional_seats.sql` adds zero-seat checkout/payment, safe skip-release and station-scoped shared-map projections.
 - `20261123000100_branches_and_daily_sales.sql` adds branch address/timezone/currency and owner-only daily gross paid-order aggregation.
+- `20261123000200_seat_operations.sql`, `20261123000300_quantities_and_resubmit.sql` and `20261123000400_seat_presentation.sql` add standalone seating, safe resubmission, grouped quantities and shared seat labels/countdowns. See [the operations guide](docs/seat-operations.md) for exact PowerShell migration, development seed/cleanup and redeployment steps.
 
 The existing Cron job calls `public.expire_order_sessions()` every 30 seconds. The upgraded function also expires paid seat-use sessions and payment attempts. It rechecks the current session ID and deadline and skips busy branches for retry on the next pass. Owner and display reads also recover expired records before returning data. A periodic pass can be delayed by load, so stored status changes occur on the next successful pass or relevant operation.
 

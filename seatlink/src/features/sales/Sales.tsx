@@ -38,16 +38,11 @@ function SalesWorkspace({ client, branchId, snapshot, now, disabled, refresh, se
   }, [branchId, checkout.dirty, checkout.selected.length, checkout.step, checkout.working, setNavigationBlock])
 
   return <>
-    <header className="workspace-context">
-      <p>{snapshot.operator?.role_label} · {snapshot.station?.name}</p>
-      <p role="status">{snapshot.display_last_seen_at && now - Date.parse(snapshot.display_last_seen_at) < 75000
-        ? 'Customer display connected' : 'Customer display has no recent connection'}</p>
-    </header>
     <nav className="owner-navigation" aria-label="Owner workspace">{nav.map((item) => <button type="button"
       key={item.view} className="with-icon" aria-current={view === item.view ? 'page' : undefined} onClick={() => setView(item.view)}><Icon name={icons[item.view]} />{item.label}</button>)}</nav>
     {view === 'CHECKOUT' ? <GuidedCheckout client={client} snapshot={snapshot} checkout={checkout}
-      now={now} disabled={disabled} refresh={refresh} /> :
-      <OwnerTools key={view} client={client} snapshot={snapshot} now={now} disabled={disabled} refresh={refresh} view={view} />}
+      now={now} disabled={disabled} refresh={refresh} openSettings={() => setView('DISPLAY')} /> :
+      <OwnerTools key={view} client={client} snapshot={snapshot} now={now} disabled={disabled} refresh={refresh} view={view} branchId={branchId} />}
   </>
 }
 
@@ -75,9 +70,7 @@ export default function Sales({ client, branchId, setNavigationBlock, onPaymentC
   const now = Date.parse(snapshot.server_now) + Math.max(0, tick - receivedAt)
   const stale = failed || tick - receivedAt > (live ? salesLiveStaleMs : salesFallbackStaleMs)
   return <>
-    <div className="sales-connection"><p role="status">{stale ? 'Connection interrupted. Actions are paused until current data is available.' :
-      live ? 'Live updates connected' : 'Live updates disconnected. Refreshing automatically.'}</p>
-      <button type="button" disabled={refreshing} onClick={() => void refresh()}>{refreshing ? 'Refreshing…' : 'Reload'}</button></div>
+    {stale && <div role="alert"><p>Connection interrupted. Reconnect to continue.</p><button type="button" disabled={refreshing} onClick={() => void refresh()}>Retry connection</button></div>}
     {snapshot.cart_revision === undefined || !snapshot.station ? <p role="alert">
       Apply the guided-checkout database migrations to this Supabase project, then reload.
     </p> : <SalesWorkspace key={snapshot.order?.id ?? 'new'} client={client} branchId={branchId} snapshot={snapshot}

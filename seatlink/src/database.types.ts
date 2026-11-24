@@ -28,6 +28,8 @@ export type MenuItem = {
   currency: string
   available: boolean
   is_demo?: boolean
+  quantity_group_id?: string | null
+  options?: Record<string, string>
 }
 
 export type OrderItem = {
@@ -36,6 +38,7 @@ export type OrderItem = {
   name: string
   unit_price_minor: number
   quantity: number
+  options?: Record<string, string>
 }
 
 export type SalesOrder = {
@@ -57,6 +60,8 @@ export type SalesOrder = {
   draft_seat_ids?: string[]
   payment_method?: 'QR' | 'CASH' | null
   paid_method?: 'QR' | 'CASH' | null
+  resubmitted_from?: string | null
+  resubmission_note?: string | null
 }
 export type CheckoutStep = 'MENU' | 'SEATS' | 'PAYMENT' | 'RESULT'
 export type PreviewItem = { menu_item_id: string; name: string; quantity: number; unit_price_minor: number; currency: string }
@@ -74,7 +79,8 @@ export type PaymentAttempt = {
   cash_change_minor?: number | null
 }
 export type SeatUse = {
-  id: string; order_id: string; seat_id: string; started_at: string; expires_at: string
+  id: string; order_id: string | null; seat_id: string; started_at: string; expires_at: string
+  branch_id?: string; origin?: 'CHECKOUT' | 'OWNER_ACTIVATION'; activated_by?: string; activation_request_id?: string | null
   status: 'ACTIVE' | 'RELEASED' | 'EXPIRED'; ended_at: string | null
   label: SeatLabel; table_number: number
 }
@@ -105,9 +111,10 @@ export type SalesSnapshot = {
   tables: {
     id: string
     table_number: number
-    seats: { id: string; label: SeatLabel; status: SeatStatus; locked_order_id: string | null }[]
+    display_label?: string
+    seats: { id: string; label: SeatLabel; status: SeatStatus; locked_order_id: string | null; display_number?: number; position?: string; expires_at?: string | null }[]
   }[]
-  history: Pick<SalesOrder, 'id' | 'status' | 'currency' | 'total_minor' | 'created_at' | 'session_expires_at'>[]
+  history: (Pick<SalesOrder, 'id' | 'status' | 'currency' | 'total_minor' | 'created_at' | 'session_expires_at'> & {payment_mode?: 'MOCK' | 'CASH' | 'SANDBOX' | null})[]
   station?: { id: string; name: string }
   operator?: { role: 'OWNER'; role_label: string }
   development_enabled?: boolean
@@ -176,6 +183,9 @@ export type Database = {
       prepare_mock_qr: { Args: { p_order_id: string; p_request_id: string }; Returns: PaymentAttempt }
       simulate_mock_payment: { Args: { p_attempt_id: string; p_event_id: string; p_result: 'SUCCESS' | 'FAILURE' }; Returns: SalesOrder }
       release_seat_use: { Args: { p_order_id: string; p_session_ids: string[] }; Returns: undefined }
+      activate_seats: { Args: { p_branch_id: string; p_seat_ids: string[]; p_request_id: string }; Returns: undefined }
+      release_active_seats: { Args: { p_branch_id: string; p_session_ids: string[]; p_request_id: string }; Returns: undefined }
+      resubmit_order: { Args: { p_order_id: string; p_request_id: string }; Returns: SalesOrder }
       simulate_extension: { Args: { p_session_id: string; p_request_id: string; p_additional_seconds: number }; Returns: string }
       extend_seat_use: { Args: { p_device_token: string; p_request_id: string; p_seat_id: string; p_session_id: string; p_additional_seconds: number }; Returns: string }
       pair_customer_display: { Args: { p_station_id: string }; Returns: string }

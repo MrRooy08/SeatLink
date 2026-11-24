@@ -182,7 +182,7 @@ async function seats(user: ReturnType<typeof userEvent.setup>) {
 
 async function payment(user: ReturnType<typeof userEvent.setup>) {
   await seats(user)
-  await user.click(screen.getByRole('button', { name: 'Table 1 seat A' }))
+  await user.click(screen.getByRole('button', { name: 'Table A · Seat 1' }))
   await user.click(screen.getByRole('button', { name: 'Confirm seats' }))
   await screen.findByRole('heading', { name: 'Payment', exact: true })
 }
@@ -191,15 +191,15 @@ it('renders only the active workspace, searches the menu and caps seat selection
   const user = userEvent.setup()
   render(<Owner client={client} />)
   await screen.findByRole('heading', { name: 'Menu and cart' })
-  expect(screen.queryByRole('button', { name: 'Table 1 seat A' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Table A · Seat 1' })).toBeNull()
   await user.type(screen.getByRole('searchbox'), 'tea')
   expect(screen.queryByRole('button', { name: 'Unavailable' })).toBeNull()
   await seats(user)
   expect(screen.queryByRole('button', { name: 'Add Iced tea' })).toBeNull()
-  for (const label of ['A', 'B', 'C', 'D']) await user.click(screen.getByRole('button', { name: `Table 1 seat ${label}` }))
+  for (const label of ['A', 'B', 'C', 'D']) await user.click(screen.getByRole('button', { name: `Table A · Seat ${label.charCodeAt(0)-64}` }))
   expect(screen.getByText('4 of 4 seats selected')).toBeTruthy()
-  expect(screen.getByRole('button', { name: 'Table 2 seat A' }).hasAttribute('disabled')).toBe(true)
-  await user.click(screen.getByRole('button', { name: 'Remove selected seat A' }))
+  expect(screen.getByRole('button', { name: 'Table B · Seat 1' }).hasAttribute('disabled')).toBe(true)
+  await user.click(screen.getByRole('button', { name: 'Remove Table A · Seat 1' }))
   expect(screen.getByText('3 of 4 seats selected')).toBeTruthy()
 })
 
@@ -209,13 +209,13 @@ it('completes cash checkout and starts a new cart while paid seats remain occupi
   await payment(user)
   const deadline = snapshot.order!.session_expires_at
   const salesReadsBeforePayment = api.readDailySales.mock.calls.length
-  await user.click(screen.getByRole('radio', { name: 'Cash' }))
+  await user.click(screen.getByRole('radio', { name: 'Cash & Card' }))
   const received = await screen.findByRole('textbox', { name: 'Amount received (SGD)' })
   await user.type(received, '1')
-  expect(screen.getByRole('button', { name: 'Confirm', exact: true }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('button', { name: 'Confirm Payment', exact: true }).hasAttribute('disabled')).toBe(true)
   await user.clear(received)
   await user.type(received, '5.00')
-  await user.dblClick(screen.getByRole('button', { name: 'Confirm', exact: true }))
+  await user.dblClick(screen.getByRole('button', { name: 'Confirm Payment', exact: true }))
   await screen.findByRole('heading', { name: 'Payment confirmed' })
   await waitFor(() => expect(api.readDailySales.mock.calls.length).toBeGreaterThan(salesReadsBeforePayment))
   expect(client.rpc).toHaveBeenCalledWith('confirm_cash_payment', expect.objectContaining({ p_received_minor: 500 }))
@@ -234,7 +234,7 @@ it('retains cart quantities when server validation fails', async () => {
   vi.mocked(client.rpc).mockResolvedValueOnce({ data: null, error: { message: 'offline' } } as never)
   await user.click(screen.getByRole('button', { name: 'Continue to seats' }))
   await screen.findByRole('alert')
-  expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('1')
+  expect((screen.getByRole('textbox', {name: 'Quantity for Iced tea'}) as HTMLInputElement).value).toBe('1')
   expect(screen.queryByRole('heading', { name: 'Choose individual seats' })).toBeNull()
 })
 
@@ -242,11 +242,11 @@ it('keeps conflicting selected seats visible and explains the failed reservation
   const user = userEvent.setup()
   render(<Owner client={client} />)
   await seats(user)
-  await user.click(screen.getByRole('button', { name: 'Table 1 seat A' }))
+  await user.click(screen.getByRole('button', { name: 'Table A · Seat 1' }))
   vi.mocked(client.rpc).mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'Selected seats unavailable: Table 1 / Seat A. Choose available replacements.' } } as never)
   await user.click(screen.getByRole('button', { name: 'Confirm seats' }))
   expect((await screen.findByRole('alert')).textContent).toMatch(/unavailable/)
-  expect(screen.getByRole('button', { name: 'Table 1 seat A' }).getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByRole('button', { name: 'Table A · Seat 1' }).getAttribute('aria-pressed')).toBe('true')
 })
 
 it('blocks cash for an unresolved QR and keeps simulation outside the checkout', async () => {
@@ -254,14 +254,14 @@ it('blocks cash for an unresolved QR and keeps simulation outside the checkout',
   render(<Owner client={client} />)
   await payment(user)
   await user.click(screen.getByRole('radio', { name: 'QR payment' }))
-  await user.click(await screen.findByRole('button', { name: 'Confirm', exact: true }))
+  await user.click(await screen.findByRole('button', { name: 'Confirm Payment', exact: true }))
   await screen.findByAltText('Demo payment QR, no real charge')
   expect(screen.queryByRole('button', { name: 'Simulate payment success' })).toBeNull()
   snapshot.unresolved_qr = 1
-  await user.click(screen.getByRole('radio', { name: 'Cash' }))
+  await user.click(screen.getByRole('radio', { name: 'Cash & Card' }))
   await user.type(await screen.findByRole('textbox', { name: 'Amount received (SGD)' }), '10')
-  expect(screen.getByRole('button', { name: 'Confirm', exact: true }).hasAttribute('disabled')).toBe(true)
-  expect(screen.getByRole('alert').textContent).toMatch(/may still accept payment/)
+  expect(screen.getByRole('button', { name: 'Confirm Payment', exact: true }).hasAttribute('disabled')).toBe(true)
+  expect(screen.getByRole('alert').textContent).toMatch(/still pending/)
   expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
 })
 
@@ -271,8 +271,8 @@ it.each(['MENU', 'SEATS', 'PAYMENT', 'RESULT'] as const)('restores persisted %s 
   if (step === 'MENU') snapshot.cart_preview = [{ menu_item_id: 'tea', name: 'Iced tea', currency: 'SGD', unit_price_minor: 180, quantity: 2 }]
   render(<Owner client={client} />)
   await screen.findByRole('heading', { name: { MENU: 'Menu and cart', SEATS: 'Choose individual seats', PAYMENT: 'Payment', RESULT: 'Payment confirmed' }[step], exact: true })
-  if (step === 'MENU') expect((screen.getByRole('spinbutton') as HTMLInputElement).value).toBe('2')
-  if (step === 'SEATS') expect(screen.getByRole('button', { name: 'Table 1 seat A' }).getAttribute('aria-pressed')).toBe('true')
+  if (step === 'MENU') expect((screen.getByRole('textbox', {name: 'Quantity for Iced tea'}) as HTMLInputElement).value).toBe('2')
+  if (step === 'SEATS') expect(screen.getByRole('button', { name: 'Table A · Seat 1' }).getAttribute('aria-pressed')).toBe('true')
 })
 
 it('does not read sales on button hover or focus', async () => {
@@ -291,14 +291,14 @@ it('retries a failed mock payment from the separate development workspace', asyn
   await payment(user)
   const deadline = snapshot.order!.session_expires_at
   await user.click(screen.getByRole('radio', { name: 'QR payment' }))
-  await user.click(await screen.findByRole('button', { name: 'Confirm', exact: true }))
+  await user.click(await screen.findByRole('button', { name: 'Confirm Payment', exact: true }))
   await screen.findByAltText('Demo payment QR, no real charge')
   await user.click(screen.getByRole('button', { name: 'Development tools' }))
   await user.click(screen.getByRole('button', { name: 'Simulate payment failure' }))
   await waitFor(() => expect(snapshot.attempts![0].status).toBe('FAILED'))
   await user.click(screen.getByRole('button', { name: 'Checkout', exact: true }))
   await screen.findByText(/Payment failed/)
-  await user.click(screen.getByRole('button', { name: 'Confirm', exact: true }))
+  await user.click(screen.getByRole('button', { name: 'Confirm Payment', exact: true }))
   await screen.findByAltText('Demo payment QR, no real charge')
   await user.click(screen.getByRole('button', { name: 'Development tools' }))
   await user.click(screen.getByRole('button', { name: 'Simulate payment success' }))
@@ -340,7 +340,7 @@ it('restores the same confirmed QR on both owner and paired display and advances
   render(<Owner client={client} />)
   await payment(user)
   await user.click(screen.getByRole('radio', { name: 'QR payment' }))
-  await user.dblClick(await screen.findByRole('button', { name: 'Confirm', exact: true }))
+  await user.dblClick(await screen.findByRole('button', { name: 'Confirm Payment', exact: true }))
   await screen.findByAltText('Demo payment QR, no real charge')
   expect(vi.mocked(client.rpc).mock.calls.filter(([name]) => name === 'prepare_mock_qr')).toHaveLength(1)
   window.history.replaceState(null, '', '/owner?branch=riverside#' + 'a'.repeat(64))
@@ -364,8 +364,8 @@ it('identifies disabled development configuration and does not create a fake pay
   render(<Owner client={client} />)
   await payment(user)
   await user.click(screen.getByRole('radio', { name: 'QR payment' }))
-  expect((await screen.findByRole('alert')).textContent).toMatch(/allowlist this test owner/)
-  expect(screen.getByRole('button', { name: 'Confirm', exact: true }).hasAttribute('disabled')).toBe(true)
+  expect((await screen.findByRole('alert')).textContent).toMatch(/check payment settings/)
+  expect(screen.getByRole('button', { name: 'Confirm Payment', exact: true }).hasAttribute('disabled')).toBe(true)
   expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
 })
 
@@ -380,8 +380,8 @@ it('uses native radio keyboard navigation and makes the selected method visible'
   await waitFor(() => expect((qr as HTMLInputElement).checked).toBe(true))
   act(() => qr.focus())
   await user.keyboard('{ArrowRight}')
-  await waitFor(() => expect((screen.getByRole('radio', { name: 'Cash' }) as HTMLInputElement).checked).toBe(true))
-  expect(screen.getByText('Confirm only after receiving the cash.')).toBeTruthy()
+  await waitFor(() => expect((screen.getByRole('radio', { name: 'Cash & Card' }) as HTMLInputElement).checked).toBe(true))
+  expect(screen.getByText('Confirm only after receiving payment.')).toBeTruthy()
   vi.unstubAllGlobals()
 })
 
@@ -418,7 +418,7 @@ it.each(['CASH','QR'] as const)('completes %s checkout without seats and synchro
   const user = userEvent.setup()
   render(<Owner client={client} />)
   await seats(user)
-  await user.click(screen.getByRole('button', { name: 'Table 1 seat A' }))
+  await user.click(screen.getByRole('button', { name: 'Table A · Seat 1' }))
   await user.click(screen.getByRole('button', { name: 'Continue without seats' }))
   await screen.findByRole('heading', { name: 'Payment', exact: true })
   expect(snapshot.order!.selected_seat_ids).toEqual([])
@@ -427,9 +427,9 @@ it.each(['CASH','QR'] as const)('completes %s checkout without seats and synchro
   window.history.replaceState(null, '', '/owner?branch=riverside#'+'a'.repeat(64))
   render(<CustomerDisplay />)
   await waitFor(() => expect(screen.getAllByText('No seats selected').length).toBeGreaterThanOrEqual(2))
-  await user.click(screen.getByRole('radio', { name: method === 'CASH' ? 'Cash' : 'QR payment' }))
+  await user.click(screen.getByRole('radio', { name: method === 'CASH' ? 'Cash & Card' : 'QR payment' }))
   if (method === 'CASH') await user.type(await screen.findByRole('textbox', { name: 'Amount received (SGD)' }), '5.00')
-  await user.click(await screen.findByRole('button', { name: 'Confirm', exact: true }))
+  await user.click(await screen.findByRole('button', { name: 'Confirm Payment', exact: true }))
   if (method === 'QR') {
     await screen.findByAltText('Demo payment QR, no real charge')
     await client.rpc('simulate_mock_payment', { p_attempt_id: snapshot.attempts![0].id, p_event_id: crypto.randomUUID(), p_result: 'SUCCESS' })
@@ -439,7 +439,7 @@ it.each(['CASH','QR'] as const)('completes %s checkout without seats and synchro
   await waitFor(() => expect(snapshot.allocations ?? []).toHaveLength(0))
   expect(screen.queryByText(/seat-use period started/)).toBeNull()
   expect(screen.queryByText(/seat-use sessions have ended/)).toBeNull()
-  expect(screen.queryByRole('button', { name: 'Table 1 seat A' })).toBeNull()
+  expect(screen.queryByRole('button', { name: 'Table A · Seat 1' })).toBeNull()
 })
 
 it('skips an existing reservation without resetting expiry or releasing another order', async () => {
@@ -461,7 +461,7 @@ it.each(['cart','seats','payment'] as const)('protects %s state when a different
   const user = userEvent.setup()
   render(<Owner client={client} />)
   if (stage==='cart') await user.click(await screen.findByRole('button',{name:'Add Iced tea'}))
-  else if (stage==='seats') { await seats(user);await user.click(screen.getByRole('button',{name:'Table 1 seat A'})) }
+  else if (stage==='seats') { await seats(user);await user.click(screen.getByRole('button',{name:'Table A · Seat 1'})) }
   else await payment(user)
   const deadline = snapshot.order?.session_expires_at
   await user.click(screen.getByRole('button',{name:'Switch branch',exact:true}))
@@ -475,3 +475,18 @@ it.each(['cart','seats','payment'] as const)('protects %s state when a different
 
 
 
+
+it('removes cart lines at zero and with Remove without deleting menu entries',async()=>{
+ const user=userEvent.setup()
+ render(<Owner client={client}/> )
+ await user.click(await screen.findByRole('button',{name:'Add Iced tea'}))
+ await user.click(screen.getByRole('button',{name:'Decrease Quantity for Iced tea'}))
+ expect(screen.queryByRole('button',{name:'Remove Iced tea'})).toBeNull()
+ expect((screen.getByRole('textbox',{name:'Menu quantity for Iced tea'}) as HTMLInputElement).value).toBe('0')
+ await user.click(screen.getByRole('button',{name:'Add Iced tea'}))
+ await user.click(screen.getByRole('button',{name:'Remove Iced tea'}))
+ expect(screen.queryByRole('button',{name:'Remove Iced tea'})).toBeNull()
+ expect(screen.getByRole('button',{name:'Add Iced tea'}).hasAttribute('disabled')).toBe(false)
+ expect(screen.getByRole('button',{name:'Continue to seats'}).hasAttribute('disabled')).toBe(true)
+ expect(client.rpc).not.toHaveBeenCalledWith('delete_menu_item',expect.anything())
+})

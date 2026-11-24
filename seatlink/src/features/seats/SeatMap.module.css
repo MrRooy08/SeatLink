@@ -37,4 +37,6 @@ button.seat:hover:not(:disabled) { background: #eaf2ec; }
 .seat:focus-visible { outline: 3px solid #527958; outline-offset: 2px; }
 .readOnly .cushion strong { font-size: 1.1rem; }
 .readOnly .table h3 { font-size: 1.05rem; }
+.countdown { position: absolute; z-index: 1; bottom: -7px; left: 3px; right: 3px; border-radius: 4px; background: #414b46; color: white; font-size: 10px; line-height: 14px; font-variant-numeric: tabular-nums; }
+.north, .east, .south, .west { row-gap: 0.65rem; }
 @media (max-width: 480px) { .tables { justify-items: center; } .tableCard { width: 100%; } }

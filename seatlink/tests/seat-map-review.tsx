@@ -1,5 +1,5 @@
 // Vite development fixture only; not an entry point in the production build.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../src/index.css'
 import SeatMap from '../src/features/seats/SeatMap'
@@ -12,14 +12,17 @@ const tables: MapTable[] = Array.from({ length: 8 }, (_, index) => ({ id: `revie
     status: index === 0 && label === 'B' || index === 2 && label === 'A' ? 'LOCKED' :
       index === 0 && label === 'C' || index === 3 && label === 'D' ? 'UNAVAILABLE' : 'AVAILABLE',
     current_order: index === 0 && label === 'B',
+    expires_at: index === 0 && label === 'C' || index === 3 && label === 'D' ? new Date(Date.now()+8*60000).toISOString() : null,
   })) }))
 
 export default function Review() {
   const [selected, setSelected] = useState(['review-seat-0-A'])
+  const [now,setNow] = useState(() => Date.now())
+  useEffect(() => { const timer=window.setInterval(()=>setNow(Date.now()),1000);return ()=>window.clearInterval(timer) },[])
   return <main className={styles.review}><h1>Seat-map review</h1><p>Development fixtures · No database requests or payments</p>
     <p aria-live="polite">{selected.length} of 4 seats selected. {selected.map(id => id.replace('review-seat-','')).join(', ') || 'No seats selected'}</p>
     <div className={styles.comparison}>
-      <section><h2>Owner · Interactive</h2><SeatMap tables={tables} selectedIds={selected} onToggle={id => setSelected(previous => previous.includes(id)
+      <section><h2>Owner · Interactive</h2><SeatMap tables={tables} ownerNow={now} selectedIds={selected} onToggle={id => setSelected(previous => previous.includes(id)
         ? previous.filter(seat=>seat!==id) : previous.length<4 ? [...previous,id] : previous)} /></section>
       <section><h2>Customer · Read only</h2><SeatMap tables={tables} selectedIds={selected} /></section>
     </div>
