@@ -1,12 +1,11 @@
-import { seatReference } from '../seats/seat-labels'
 import { useEffect, useState } from 'react'
 import { createDisplayClient } from '../../supabase'
 import { formatMoney } from '../../sales-data'
 import PaymentQr from '../checkout/PaymentQr'
 import Icon from '../../components/Icon'
 import { useDisplay } from './useDisplay'
+import OrderSeatSummary from './OrderSeatSummary'
 import './CustomerDisplay.css'
-import SeatMap from '../seats/SeatMap'
 
 export default function CustomerDisplay() {
   const [client] = useState(createDisplayClient)
@@ -39,7 +38,6 @@ export default function CustomerDisplay() {
   const qrMethod = order?.payment_method === 'QR' || order?.payment_method === undefined
   const showQr = !stale && qrMethod && order?.status === 'PENDING' && !sessionExpired && order.payment_status === 'PENDING' &&
     !!(order.qr_text || order.qr_image_url) && Date.parse(order.qr_expires_at!) > now
-  const seats = data.tables.flatMap((table) => table.seats)
 
   return (
     <main className="customer-display">
@@ -54,10 +52,8 @@ export default function CustomerDisplay() {
           <ul>{order.items.map((item) => <li key={item.name}><span>{item.quantity} × {item.name}</span>
             <span>{formatMoney(item.unit_price_minor * item.quantity, order.currency)}</span></li>)}</ul>
           <p className="display-total">Total {formatMoney(order.total_minor, order.currency)}</p>
-          {!order.selected_seats.length && <p>No seats selected</p>}
-          {order.selected_seats.length > 0 && order.status !== 'PAID' && <p>{order.status === 'PAID_REVIEW' ? 'Previously selected seats' : 'Selected seats'} {order.selected_seats.map((seat) =>
-            seatReference(seat.table_number,seat.label)).join(', ')}</p>}
-          {order.status === 'DRAFT' && <p>{order.checkout_step === 'SEATS' ? 'The seller is selecting your seats.' : 'The seller is preparing your order.'}</p>}
+          <OrderSeatSummary order={order} tables={data.tables} />
+          {order.status === 'DRAFT' && <p>The seller is preparing your order.</p>}
           {order.status === 'PENDING' && !sessionExpired && <p>Complete payment before {new Date(order.session_expires_at!).toLocaleTimeString()}.</p>}
           {order.payment_method && <p>Payment method {(order.paid_method ?? order.payment_method) === 'CASH' ? 'Cash & Card' : 'QR payment'}</p>}
           {order.status === 'PENDING' && order.payment_method === 'CASH' && !sessionExpired && <p role="status" className="display-cash with-icon"><Icon name="cash" />Please pay at the counter.</p>}
@@ -70,21 +66,10 @@ export default function CustomerDisplay() {
             <p>{stale ? 'Waiting for a current payment QR.' : 'Waiting for the owner to generate or renew the payment QR.'}</p>}
           {(order.status === 'EXPIRED' || sessionExpired) && <p role="status">The order session has expired. Please ask the owner for assistance.</p>}
           {order.status === 'CANCELLED' && <p role="status">This order was cancelled.</p>}
-          {order.status === 'PAID' && <p role="status" className="display-success with-icon"><Icon name="success" />Payment confirmed.{order.allocations.length > 0 ? ' Your seat-use period started when payment was confirmed.' : ''}</p>}
-          {order.status === 'PAID' && !order.allocations.length && order.selected_seats.length > 0 && <p>Your seat-use sessions have ended.</p>}
-          {order.status === 'PAID_REVIEW' && <p role="alert" className="with-icon"><Icon name="warning" />Payment received. Please ask the owner for seating assistance.</p>}
-          {order.allocations.map((allocation) => <p key={`${allocation.table_number}-${allocation.label}`}>
-            {seatReference(allocation.table_number,allocation.label)} · Use until {new Date(allocation.expires_at).toLocaleTimeString()}
-          </p>)}
+          {order.status === 'PAID' && <p role="status" className="display-success with-icon"><Icon name="success" />Payment confirmed.</p>}
+          {order.status === 'PAID_REVIEW' && <p role="alert" className="with-icon"><Icon name="warning" />Payment received. Please ask the owner for assistance.</p>}
         </section>
       )}
-      <section aria-label="Customer seat availability">
-        <h2>{seats.filter((seat) => seat.status === 'AVAILABLE').length} of {seats.length} seats available</h2>
-        <SeatMap tables={data.tables.map(table => ({ ...table, seats: table.seats.map(seat => ({ ...seat,
-          current_order: seat.current_order ?? (!!order && ['DRAFT','PENDING'].includes(order.status) &&
-            order.selected_seats.some(selected => selected.table_number === table.table_number && selected.label === seat.label)),
-        })) }))} />
-      </section>
     </main>
   )
 }

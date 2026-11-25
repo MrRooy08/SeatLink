@@ -34,9 +34,21 @@ beforeAll(async () => {
   await db.exec(sql('../supabase/migrations/20261123000200_seat_operations.sql'))
   await db.exec(sql('../supabase/migrations/20261123000300_quantities_and_resubmit.sql'))
   await db.exec(sql('../supabase/migrations/20261123000400_seat_presentation.sql'))
+  await db.exec(sql('../supabase/migrations/20261125000000_activation_durations.sql'))
+  await db.exec(sql('../supabase/migrations/20261125000100_custom_activation_durations.sql'))
 }, 20_000)
 
 afterAll(async () => db.close())
+
+it('projects draft selections without reservations and isolates current-order seats across counters and reset', async () => {
+ const fixture=sql('../supabase/tests/guided_cash.sql').split('set local role authenticated;')[0]
+ await db.exec(fixture+sql('../supabase/tests/display-selection-body.sql'))
+})
+
+it('validates mixed activation durations, immutable retries, defaults and branch isolation',async()=>{
+ const fixture=sql('../supabase/tests/guided_cash.sql').split('set local role authenticated;')[0]
+ await db.exec(fixture+sql('../supabase/tests/activation-durations-body.sql'))
+})
 
 it('runs the PostgreSQL RLS and grants assertions under authenticated and anon roles', async () => {
   await db.exec(sql('../supabase/tests/owner_access.sql'))

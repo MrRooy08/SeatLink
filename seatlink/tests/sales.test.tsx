@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import Owner from '../src/Owner'
@@ -176,7 +176,7 @@ afterEach(() => {
 
 async function seats(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole('button', { name: 'Add Iced tea' }))
-  await user.click(screen.getByRole('button', { name: 'Continue to seats' }))
+  await user.click(screen.getByRole('button', { name: 'Next' }))
   await screen.findByRole('heading', { name: 'Choose individual seats' })
 }
 
@@ -186,6 +186,43 @@ async function payment(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole('button', { name: 'Confirm seats' }))
   await screen.findByRole('heading', { name: 'Payment', exact: true })
 }
+
+it('syncs owner draft selections to the paired display before confirmation without locking or activating seats', async () => {
+  const user = userEvent.setup()
+  let broadcast!: () => void
+  subscription.on.mockImplementation((event, _options, callback) => {
+    if (event === 'broadcast') broadcast = callback
+    return subscription
+  })
+  try {
+    render(<Owner client={client} />)
+    await seats(user)
+    window.history.replaceState(null, '', '/owner?branch=riverside#' + 'a'.repeat(64))
+    render(<CustomerDisplay />)
+    const customer = await screen.findByRole('region', { name: 'Current customer checkout' })
+    expect(within(customer).queryByRole('status', { name: 'Your seats' })).toBeNull()
+    const choose = async (seat: string, ids: string[]) => {
+      await user.click(screen.getByRole('button', { name: seat }))
+      await waitFor(() => expect(snapshot.order!.draft_seat_ids).toEqual(ids))
+      act(() => broadcast())
+    }
+    await choose('Table A · Seat 1', ['A'])
+    expect((await within(customer).findByRole('status', { name: 'Your seats' })).textContent).toContain('Table A · Seat 1')
+    await choose('Table B · Seat 1', ['A', '2A'])
+    await waitFor(() => expect(within(customer).getByRole('status', { name: 'Your seats' }).textContent).toContain('Table B · Seat 1'))
+    await choose('Table A · Seat 1', ['2A'])
+    await waitFor(() => expect(within(customer).getByRole('status', { name: 'Your seats' }).textContent).toBe('Your seats:Table B · Seat 1'))
+    await choose('Table B · Seat 1', [])
+    await waitFor(() => expect(within(customer).queryByRole('status', { name: 'Your seats' })).toBeNull())
+    expect(snapshot.order!.status).toBe('DRAFT')
+    expect(snapshot.order!.session_expires_at).toBeNull()
+    expect(snapshot.tables.every(table => table.seats.every(seat => seat.status === 'AVAILABLE'))).toBe(true)
+    expect(vi.mocked(client.rpc).mock.calls.some(([name]) => ['confirm_order_seats', 'activate_seats'].includes(name))).toBe(false)
+    expect(within(customer).queryByRole('list', { name: 'Seat status legend' })).toBeNull()
+  } finally {
+    subscription.on.mockReset().mockReturnThis()
+  }
+})
 
 it('renders only the active workspace, searches the menu and caps seat selection at four', async () => {
   const user = userEvent.setup()
@@ -232,9 +269,9 @@ it('retains cart quantities when server validation fails', async () => {
   render(<Owner client={client} />)
   await user.click(await screen.findByRole('button', { name: 'Add Iced tea' }))
   vi.mocked(client.rpc).mockResolvedValueOnce({ data: null, error: { message: 'offline' } } as never)
-  await user.click(screen.getByRole('button', { name: 'Continue to seats' }))
+  await user.click(screen.getByRole('button', { name: 'Next' }))
   await screen.findByRole('alert')
-  expect((screen.getByRole('textbox', {name: 'Quantity for Iced tea'}) as HTMLInputElement).value).toBe('1')
+  expect((screen.getByRole('textbox', {name: 'Menu quantity for Iced tea'}) as HTMLInputElement).value).toBe('1')
   expect(screen.queryByRole('heading', { name: 'Choose individual seats' })).toBeNull()
 })
 
@@ -271,14 +308,14 @@ it.each(['MENU', 'SEATS', 'PAYMENT', 'RESULT'] as const)('restores persisted %s 
   if (step === 'MENU') snapshot.cart_preview = [{ menu_item_id: 'tea', name: 'Iced tea', currency: 'SGD', unit_price_minor: 180, quantity: 2 }]
   render(<Owner client={client} />)
   await screen.findByRole('heading', { name: { MENU: 'Menu and cart', SEATS: 'Choose individual seats', PAYMENT: 'Payment', RESULT: 'Payment confirmed' }[step], exact: true })
-  if (step === 'MENU') expect((screen.getByRole('textbox', {name: 'Quantity for Iced tea'}) as HTMLInputElement).value).toBe('2')
+  if (step === 'MENU') expect((screen.getByRole('textbox', {name: 'Menu quantity for Iced tea'}) as HTMLInputElement).value).toBe('2')
   if (step === 'SEATS') expect(screen.getByRole('button', { name: 'Table A · Seat 1' }).getAttribute('aria-pressed')).toBe('true')
 })
 
 it('does not read sales on button hover or focus', async () => {
   const user = userEvent.setup()
   render(<Owner client={client} />)
-  const button = await screen.findByRole('button', { name: 'Continue to seats' })
+  const button = await screen.findByRole('button', { name: 'Next' })
   const count = api.readSales.mock.calls.length
   await user.hover(button)
   act(() => button.focus())
@@ -329,7 +366,7 @@ it('returns to Menu and validates edited quantities with the updated preview rev
   await user.click(screen.getByRole('button', { name: 'Back to menu' }))
   await screen.findByRole('heading', { name: 'Menu and cart' })
   await user.click(screen.getByRole('button', { name: 'Add Iced tea' }))
-  await user.click(screen.getByRole('button', { name: 'Continue to seats' }))
+  await user.click(screen.getByRole('button', { name: 'Next' }))
   await screen.findByRole('heading', { name: 'Choose individual seats' })
   expect(snapshot.order!.total_minor).toBe(360)
   expect(screen.queryByRole('alert')).toBeNull()
@@ -352,7 +389,7 @@ it('restores the same confirmed QR on both owner and paired display and advances
   await client.rpc('simulate_mock_payment', { p_attempt_id: snapshot.attempts![0].id, p_event_id: crypto.randomUUID(), p_result: 'SUCCESS' })
   act(() => window.dispatchEvent(new Event('online')))
   await screen.findByRole('heading', { name: 'Payment confirmed' })
-  await screen.findByText(/Payment confirmed. Your seat-use period/)
+  await screen.findByText('Payment confirmed.')
   expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
 })
 
@@ -426,7 +463,9 @@ it.each(['CASH','QR'] as const)('completes %s checkout without seats and synchro
   expect(snapshot.tables.every(table => table.seats.every(seat => seat.status === 'AVAILABLE'))).toBe(true)
   window.history.replaceState(null, '', '/owner?branch=riverside#'+'a'.repeat(64))
   render(<CustomerDisplay />)
-  await waitFor(() => expect(screen.getAllByText('No seats selected').length).toBeGreaterThanOrEqual(2))
+  const customerOrder = await screen.findByRole('region', { name: 'Current customer checkout' })
+  expect(screen.getByText('No seats selected')).toBeTruthy()
+  expect(within(customerOrder).queryByText(/seats?/i)).toBeNull()
   await user.click(screen.getByRole('radio', { name: method === 'CASH' ? 'Cash & Card' : 'QR payment' }))
   if (method === 'CASH') await user.type(await screen.findByRole('textbox', { name: 'Amount received (SGD)' }), '5.00')
   await user.click(await screen.findByRole('button', { name: 'Confirm Payment', exact: true }))
@@ -437,24 +476,21 @@ it.each(['CASH','QR'] as const)('completes %s checkout without seats and synchro
   act(() => window.dispatchEvent(new Event('online')))
   await screen.findByRole('heading', { name: 'Payment confirmed' })
   await waitFor(() => expect(snapshot.allocations ?? []).toHaveLength(0))
-  expect(screen.queryByText(/seat-use period started/)).toBeNull()
-  expect(screen.queryByText(/seat-use sessions have ended/)).toBeNull()
+  await within(customerOrder).findByText('Payment confirmed.')
+  expect(within(customerOrder).queryByText(/seats?/i)).toBeNull()
   expect(screen.queryByRole('button', { name: 'Table A · Seat 1' })).toBeNull()
 })
 
-it('skips an existing reservation without resetting expiry or releasing another order', async () => {
+it('keeps reserved seats on the payment page without offering to skip them', async () => {
   const user = userEvent.setup()
   render(<Owner client={client} />)
   await payment(user)
   const deadline = snapshot.order!.session_expires_at
-  snapshot.tables[1].seats[0].status = 'LOCKED'
-  snapshot.tables[1].seats[0].locked_order_id = 'another-order'
-  await user.click(screen.getByRole('button', { name: 'Continue without seats' }))
-  await waitFor(() => expect(snapshot.order!.selected_seat_ids).toEqual([]))
+  expect(screen.queryByRole('button', { name: 'Continue without seats' })).toBeNull()
+  expect(snapshot.order!.selected_seat_ids).toEqual(['A'])
   expect(snapshot.order!.session_expires_at).toBe(deadline)
-  expect(snapshot.tables[0].seats[0].status).toBe('AVAILABLE')
-  expect(snapshot.tables[1].seats[0].locked_order_id).toBe('another-order')
-  expect(screen.getByText('No seats selected')).toBeTruthy()
+  expect(snapshot.tables[0].seats[0].status).toBe('LOCKED')
+  expect(screen.getByRole('button', { name: 'Cancel and start again' })).toBeTruthy()
 })
 
 it.each(['cart','seats','payment'] as const)('protects %s state when a different branch is chosen in the modal', async stage => {
@@ -476,17 +512,18 @@ it.each(['cart','seats','payment'] as const)('protects %s state when a different
 
 
 
-it('removes cart lines at zero and with Remove without deleting menu entries',async()=>{
+it('removes menu selections at zero without a separate cart section',async()=>{
  const user=userEvent.setup()
  render(<Owner client={client}/> )
  await user.click(await screen.findByRole('button',{name:'Add Iced tea'}))
- await user.click(screen.getByRole('button',{name:'Decrease Quantity for Iced tea'}))
+ await user.click(screen.getByRole('button',{name:'Decrease Menu quantity for Iced tea'}))
  expect(screen.queryByRole('button',{name:'Remove Iced tea'})).toBeNull()
  expect((screen.getByRole('textbox',{name:'Menu quantity for Iced tea'}) as HTMLInputElement).value).toBe('0')
  await user.click(screen.getByRole('button',{name:'Add Iced tea'}))
- await user.click(screen.getByRole('button',{name:'Remove Iced tea'}))
+ await user.clear(screen.getByRole('textbox',{name:'Menu quantity for Iced tea'}))
+ await user.type(screen.getByRole('textbox',{name:'Menu quantity for Iced tea'}),'0')
  expect(screen.queryByRole('button',{name:'Remove Iced tea'})).toBeNull()
  expect(screen.getByRole('button',{name:'Add Iced tea'}).hasAttribute('disabled')).toBe(false)
- expect(screen.getByRole('button',{name:'Continue to seats'}).hasAttribute('disabled')).toBe(true)
+ expect(screen.getByRole('button',{name:'Next'}).hasAttribute('disabled')).toBe(true)
  expect(client.rpc).not.toHaveBeenCalledWith('delete_menu_item',expect.anything())
 })

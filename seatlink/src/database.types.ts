@@ -90,7 +90,7 @@ export type PaymentException = {
 }
 export type DisplaySnapshot = {
   server_now: string; station_id: string; station_name: string; branch: string
-  tables: { id?: string; table_number: number; seats: { id?: string; label: SeatLabel; status: SeatStatus; current_order?: boolean }[] }[]
+  tables: { id?: string; table_number: number; display_label?: string; seats: { id?: string; label: SeatLabel; display_number?: number; status: SeatStatus; current_order?: boolean }[] }[]
   order: {
     reference: string; status: SalesOrder['status']; total_minor: number; currency: string
     session_expires_at: string | null; payment_status: PaymentAttempt['status'] | null
@@ -183,7 +183,7 @@ export type Database = {
       prepare_mock_qr: { Args: { p_order_id: string; p_request_id: string }; Returns: PaymentAttempt }
       simulate_mock_payment: { Args: { p_attempt_id: string; p_event_id: string; p_result: 'SUCCESS' | 'FAILURE' }; Returns: SalesOrder }
       release_seat_use: { Args: { p_order_id: string; p_session_ids: string[] }; Returns: undefined }
-      activate_seats: { Args: { p_branch_id: string; p_seat_ids: string[]; p_request_id: string }; Returns: undefined }
+      activate_seats: { Args: { p_branch_id: string; p_seat_ids: string[]; p_request_id: string } | { p_branch_id: string; p_seats: {seat_id:string;duration_seconds:number}[]; p_request_id: string }; Returns: undefined }
       release_active_seats: { Args: { p_branch_id: string; p_session_ids: string[]; p_request_id: string }; Returns: undefined }
       resubmit_order: { Args: { p_order_id: string; p_request_id: string }; Returns: SalesOrder }
       simulate_extension: { Args: { p_session_id: string; p_request_id: string; p_additional_seconds: number }; Returns: string }

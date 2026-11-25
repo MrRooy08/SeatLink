@@ -1,0 +1,5 @@
+.summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.25rem 0.6rem; margin-block: 1rem;
+  padding: 0.75rem 1rem; border: 1px solid var(--line); border-radius: 0.65rem; color: var(--accent); background: var(--summary); }
+.summary strong { font-size: 0.95rem; }
+.tables { min-width: 0; }
+.summary .tables p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }

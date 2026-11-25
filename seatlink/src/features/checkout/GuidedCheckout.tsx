@@ -35,7 +35,7 @@ export default function GuidedCheckout({ client, snapshot, checkout, now, disabl
         {checkout.step === 'SEATS' && <SeatSelection snapshot={snapshot} checkout={checkout} disabled={disabled} now={now}
           back={() => void checkout.run(() => checkoutOperation(client, 'change_draft_step', { p_order_id: snapshot.order!.id, p_step: 'MENU' }))} />}
         {checkout.step === 'PAYMENT' && <PaymentStep client={client} snapshot={snapshot} now={now}
-          disabled={busy} refresh={refresh} cancel={() => setCancel(true)} skipSeats={checkout.skipSeats} openSettings={openSettings} />}
+          disabled={busy} refresh={refresh} cancel={() => setCancel(true)} openSettings={openSettings} />}
         {checkout.step === 'RESULT' && <ResultStep snapshot={snapshot} now={now} disabled={busy} start={start} />}
         {(snapshot.order?.status === 'EXPIRED' || snapshot.order?.status === 'PENDING' && Date.parse(snapshot.order.session_expires_at ?? '') <= now) &&
           !snapshot.order.paid_attempt_id && <button type="button" className="primary" disabled={busy} onClick={() => void checkout.run(() =>

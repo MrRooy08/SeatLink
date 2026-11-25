@@ -1,0 +1,23 @@
+.slot { display: grid; place-items: center; width: 64px; min-height: 32px; }
+.badge { min-height: 28px; width: 64px; margin: 0; padding: 3px 5px; border: 1px solid #9bb6a5; border-radius: 6px;
+  background: #edf5ef; color: #294c3b; font-size: 11px; line-height: 14px; font-weight: 650; white-space: normal; font-variant-numeric: tabular-nums; }
+.badge[aria-expanded='true'] { border-color: #294c3b; box-shadow: 0 0 0 1px #294c3b; }
+.popover { position: fixed; visibility: hidden; z-index: 2000; width: 244px; padding: 12px; margin: 0; box-sizing: border-box;
+  border: 1px solid #bccbc1; border-radius: 10px; background: #fff; color: #243d2d; box-shadow: 0 6px 24px #183b272b; overflow-y: auto; }
+.popover h3 { margin: 0 0 9px; font-size: 13px; line-height: 18px; font-weight: 700; }
+.options { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)) auto; gap: 0; align-items: center; }
+.options button { min-width: 0; min-height: 44px; margin: 0; padding: 5px 2px; border: 1px solid #b8cabc; border-right-width: 0;
+  border-radius: 0; font-size: 13px; line-height: 20px; color: #294c3b; background: #fff; }
+.options button:first-child { border-radius: 6px 0 0 6px; }
+.options button:nth-child(4) { border-radius: 0 6px 6px 0; border-right-width: 1px; }
+.options button[aria-pressed='true'] { background: #294c3b; border-color: #294c3b; color: #fff; }
+.unit { margin-left: 7px; color: #506658; font-size: 12px; }
+.badge:focus-visible, .options button:focus-visible { position: relative; outline: 3px solid #175bb2; outline-offset: 2px; z-index: 1; }
+.customRow { display: grid; grid-template-columns: minmax(0,.85fr) minmax(0,1.2fr) auto auto; gap: 5px; align-items: center; margin-top: 10px; }
+.customRow label { font-size: 11px; line-height: 14px; color: #375542; }
+.customRow input { min-width: 0; width: 100%; min-height: 44px; margin: 0; padding: 5px; border: 1px solid #b8cabc; border-radius: 5px; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.customRow input[aria-invalid='true'] { border-color: #a3482e; }
+.customUnit { font-size: 11px; color: #506658; }
+.customRow .apply { min-height: 44px; margin: 0; padding: 5px 7px; border: 1px solid #294c3b; border-radius: 5px; background: #294c3b; color: #fff; font-size: 12px; line-height: 20px; }
+.customRow input:focus-visible, .apply:focus-visible { outline: 3px solid #175bb2; outline-offset: 2px; }
+.validation { margin: 6px 0 0; font-size: 11px; line-height: 15px; color: #943c25; }

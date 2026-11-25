@@ -82,12 +82,24 @@ beforeAll(async () => {
   await admin.query(await sql('../supabase/migrations/20261123000200_seat_operations.sql'))
   await admin.query(await sql('../supabase/migrations/20261123000300_quantities_and_resubmit.sql'))
   await admin.query(await sql('../supabase/migrations/20261123000400_seat_presentation.sql'))
+  await admin.query(await sql('../supabase/migrations/20261125000000_activation_durations.sql'))
+  await admin.query(await sql('../supabase/migrations/20261125000100_custom_activation_durations.sql'))
 })
 
 afterAll(async () => {
   await Promise.allSettled([first?.end(), second?.end(), admin?.end()])
   // EmbeddedPostgres removes only the unique directory created above when stopped.
   if (postgres) await postgres.stop()
+})
+
+it('validates per-seat activation durations and retries on native PostgreSQL',async()=>{
+ const fixture=(await sql('../supabase/tests/guided_cash.sql')).split('set local role authenticated;')[0]
+ await admin.query(fixture+await sql('../supabase/tests/activation-durations-body.sql'))
+})
+
+it('projects current draft and assigned seats independently of other counters and standalone sessions',async()=>{
+ const fixture=(await sql('../supabase/tests/guided_cash.sql')).split('set local role authenticated;')[0]
+ await admin.query(fixture+await sql('../supabase/tests/display-selection-body.sql'))
 })
 
 it('runs the complete SQL business and RLS assertions against native PostgreSQL', async () => {
@@ -284,7 +296,7 @@ it('serializes a standalone activation against checkout without partial reservat
  const order=randomUUID()
  await second.query('select public.continue_to_seats($1,$2,0,$3,$4)',[order,ids.branch,randomUUID(),JSON.stringify([{menu_item_id:ids.menu,quantity:1}])])
  await first.query('begin')
- await first.query('select public.activate_seats($1,$2,$3)',[ids.branch,[ids.seatB],randomUUID()])
+ await first.query('select public.activate_seats($1,$2::uuid[],$3)',[ids.branch,[ids.seatB],randomUUID()])
  await second.query('begin')
  const pending=second.query('select public.confirm_order_seats($1,1,$2)',[order,[ids.seatB]])
   .then(()=>null,(error:Error)=>error)
@@ -294,4 +306,34 @@ it('serializes a standalone activation against checkout without partial reservat
  }finally{await first.query('rollback');await second.query('rollback')}
  expect((await admin.query('select selected_seat_ids,status from public.orders where id=$1',[order])).rows[0]).toEqual({selected_seat_ids:[],status:'DRAFT'})
  expect((await admin.query("select origin,order_id from public.seat_use_sessions where seat_id=$1 and status='ACTIVE'",[ids.seatB])).rows).toEqual([{origin:'OWNER_ACTIVATION',order_id:null}])
+})
+
+it('deduplicates concurrent per-seat duration activation requests without restarting their timers',async()=>{
+ const seat=randomUUID(),request=randomUUID()
+ await admin.query("insert into public.seats(id,table_id,label) values($1,$2,'C')",[seat,ids.table])
+ await first.query("select set_config('request.jwt.claim.sub',$1,false)",[ids.owner1])
+ await second.query("select set_config('request.jwt.claim.sub',$1,false)",[ids.owner1])
+ const payload=JSON.stringify([{seat_id:seat,duration_seconds:720}])
+ await first.query('begin')
+ await first.query('select public.activate_seats($1,$2::jsonb,$3)',[ids.branch,payload,request])
+ const before=(await first.query('select id,started_at,expires_at from public.seat_use_sessions where activation_request_id=$1',[request])).rows
+ const backend=(await second.query('select pg_backend_pid() as pid')).rows[0].pid
+ await second.query('begin')
+ const repeat=second.query('select public.activate_seats($1,$2::jsonb,$3)',[ids.branch,payload,request]).then(()=>null,(error:Error)=>error)
+ try {
+  let waiting=false
+  for(let attempt=0;attempt<100;attempt++) {
+   const row=(await admin.query('select wait_event_type from pg_stat_activity where pid=$1',[backend])).rows[0]
+   if(row?.wait_event_type==='Lock'){waiting=true;break}
+   await new Promise(resolve=>setTimeout(resolve,20))
+  }
+  expect(waiting).toBe(true)
+  await first.query('commit')
+  expect(await repeat).toBeNull()
+  await second.query('commit')
+ } finally {await first.query('rollback');await second.query('rollback')}
+ const after=(await admin.query('select id,started_at,expires_at from public.seat_use_sessions where activation_request_id=$1',[request])).rows
+ expect(after).toEqual(before)
+ expect(after).toHaveLength(1)
+ expect(after[0].expires_at.getTime()-after[0].started_at.getTime()).toBe(720000)
 })

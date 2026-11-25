@@ -3,6 +3,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from '../src/App'
 import type { DisplaySnapshot } from '../src/database.types'
+import { formatMoney } from '../src/sales-data'
 
 const api = vi.hoisted(() => ({ readDisplay: vi.fn(), ownerSession: vi.fn(), removeChannel: vi.fn() }))
 const channel = { on: vi.fn().mockReturnThis(), subscribe: vi.fn().mockReturnThis() }
@@ -16,6 +17,15 @@ vi.mock('qrcode', () => ({ default: { toDataURL: async () => 'data:image/png;bas
 
 let data: DisplaySnapshot
 let broadcast: () => void
+
+function expectNoSeatMap() {
+  const display = screen.getByRole('main')
+  expect(display.textContent).not.toMatch(/\b(?:seating|selected|available|occupied)\b|awaiting payment|use until|seats available/i)
+  expect(screen.queryByText('This order')).toBeNull()
+  expect(screen.queryByRole('list', { name: 'Seat status legend' })).toBeNull()
+  expect(screen.queryByRole('region', { name: /seat|table/i })).toBeNull()
+  expect(screen.queryByLabelText(/Seat time remaining/)).toBeNull()
+}
 
 beforeEach(() => {
   window.history.replaceState(null, '', '/display#' + 'a'.repeat(64))
@@ -66,17 +76,88 @@ it('loads the display directly and restores it after remount without losing quer
   expect(api.ownerSession).not.toHaveBeenCalled()
 })
 
-it('clears the QR when payment completes and cleans its subscription on unmount', async () => {
+it('updates from idle to completed checkout with only the current order seat summary', async () => {
+  const pendingOrder = data.order!
+  data.order = null
   const view = render(<App />)
+  await screen.findByRole('heading', { name: 'Welcome' })
+  expect(screen.getByText('Connected to your checkout counter')).toBeTruthy()
+  expect(screen.queryByRole('status', { name: 'Your seats' })).toBeNull()
+  expectNoSeatMap()
+
+  data.order = {
+    ...pendingOrder, status: 'DRAFT', checkout_step: 'SEATS',
+    total_minor: 360, items: [{ name: 'Iced tea', quantity: 2, unit_price_minor: 180 }],
+  }
+  act(() => broadcast())
+  await screen.findByText('The seller is preparing your order.')
+  expect(screen.getByText('2 × Iced tea')).toBeTruthy()
+  expect(screen.getByRole('listitem').textContent).toContain(formatMoney(360, 'SGD'))
+  expect(screen.getByText(/^Total /).textContent).toBe(`Total ${formatMoney(360, 'SGD')}`)
+  expectNoSeatMap()
+
+  data.order = pendingOrder
+  act(() => broadcast())
   await screen.findByAltText('Demo payment QR, no real charge')
+  expect(screen.getByText('1 × Iced tea')).toBeTruthy()
+  expect(screen.getByText(/^Complete payment before/)).toBeTruthy()
+  expectNoSeatMap()
+
   data.order!.status = 'PAID'
   data.order!.qr_text = null
   data.order!.payment_status = 'SUCCEEDED'
+  data.order!.allocations = [{ label: 'A', table_number: 1, expires_at: new Date(Date.now() + 600000).toISOString() }]
   act(() => broadcast())
-  await screen.findByText(/Payment confirmed/)
+  await screen.findByText('Payment confirmed.')
   expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
+  expectNoSeatMap()
   view.unmount()
   expect(api.removeChannel).toHaveBeenCalledWith(channel)
+})
+
+it('shows a generic assistance message for a payment under review', async () => {
+  data.order!.status = 'PAID_REVIEW'
+  render(<App />)
+  expect((await screen.findByRole('alert')).textContent).toBe('Payment received. Please ask the owner for assistance.')
+  expectNoSeatMap()
+})
+
+it.each(['MENU', 'SEATS', 'PAYMENT', 'RESULT'] as const)('keeps the full map hidden in draft step %s', async step => {
+  data.order!.status = 'DRAFT'
+  data.order!.checkout_step = step
+  render(<App />)
+  await screen.findByText('The seller is preparing your order.')
+  expect(screen.getByText('1 × Iced tea')).toBeTruthy()
+  expect(!!screen.queryByRole('status', { name: 'Your seats' })).toBe(step !== 'MENU')
+  expectNoSeatMap()
+})
+
+it.each([
+  { status: 'EXPIRED', message: 'The order session has expired. Please ask the owner for assistance.' },
+  { status: 'CANCELLED', message: 'This order was cancelled.' },
+  { status: 'PAID', message: 'Payment confirmed.' },
+] as const)('shows only order/payment content for $status with ended seat sessions', async ({ status, message }) => {
+  data.order!.status = status
+  data.order!.allocations = []
+  render(<App />)
+  await screen.findByText(message)
+  expect(!!screen.queryByRole('status', { name: 'Your seats' })).toBe(status === 'PAID')
+  expect(screen.getByText('1 × Iced tea')).toBeTruthy()
+  expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
+  expectNoSeatMap()
+})
+
+it('keeps zero-seat checkout and failed payment updates free of seating information', async () => {
+  data.order!.selected_seats = []
+  data.order!.payment_method = 'QR'
+  render(<App />)
+  await screen.findByAltText('Demo payment QR, no real charge')
+  expectNoSeatMap()
+  data.order!.payment_status = 'FAILED'
+  act(() => broadcast())
+  await screen.findByText('Payment failed. Please wait for the seller to retry.')
+  expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
+  expectNoSeatMap()
 })
 
 it('switches to cash instructions and removes the QR without exposing receipt controls', async () => {
@@ -86,6 +167,7 @@ it('switches to cash instructions and removes the QR without exposing receipt co
   data.order!.checkout_step = 'PAYMENT'
   act(() => broadcast())
   await screen.findByText('Please pay at the counter.')
+  expectNoSeatMap()
   expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
   expect(screen.queryByRole('button', { name: /Confirm cash/ })).toBeNull()
 })
@@ -131,9 +213,66 @@ it('hides stale QR content after a failed read and restores authoritative result
   expect(screen.queryByAltText('Demo payment QR, no real charge')).toBeNull()
   data.order!.status = 'PAID'
   data.order!.qr_text = null
+  data.order!.selected_seats = [{ table_number: 2, label: 'B' }]
   act(() => window.dispatchEvent(new Event('online')))
   await screen.findByText(/Payment confirmed/)
+  expect(screen.getByRole('status', { name: 'Your seats' }).textContent).toContain('Table B · Seat 2')
   expect(screen.queryByText(/Connection interrupted/)).toBeNull()
+})
+
+it('updates grouped draft seats on broadcasts and clears them on deselect, cancel, idle and a new order', async () => {
+  data.order!.status = 'DRAFT'
+  data.order!.checkout_step = 'SEATS'
+  data.order!.selected_seats = []
+  render(<App />)
+  await screen.findByText('The seller is preparing your order.')
+  expect(screen.queryByRole('status', { name: 'Your seats' })).toBeNull()
+  const update = async (seats: NonNullable<DisplaySnapshot['order']>['selected_seats']) => {
+    data.order!.selected_seats = seats
+    act(() => broadcast())
+    await waitFor(() => expect(api.readDisplay).toHaveBeenCalled())
+  }
+  await update([{ table_number: 1, label: 'A' }])
+  expect((await screen.findByRole('status', { name: 'Your seats' })).textContent).toContain('Table A · Seat 1')
+  await update([{ table_number: 2, label: 'D' }, { table_number: 1, label: 'B' }, { table_number: 1, label: 'A' }])
+  await waitFor(() => expect(screen.getByRole('status', { name: 'Your seats' }).textContent).toBe('Your seats:Table A · Seat 1, Seat 2Table B · Seat 4'))
+  await update([{ table_number: 1, label: 'B' }])
+  await waitFor(() => expect(screen.getByRole('status', { name: 'Your seats' }).textContent).toBe('Your seats:Table A · Seat 2'))
+  await update([])
+  await waitFor(() => expect(screen.queryByRole('status', { name: 'Your seats' })).toBeNull())
+  await update([{ table_number: 1, label: 'A' }])
+  await screen.findByRole('status', { name: 'Your seats' })
+  data.order!.status = 'CANCELLED'
+  act(() => broadcast())
+  await screen.findByText('This order was cancelled.')
+  expect(screen.queryByRole('status', { name: 'Your seats' })).toBeNull()
+  const previous = structuredClone(data.order!)
+  data.order = null
+  act(() => broadcast())
+  await screen.findByRole('heading', { name: 'Welcome' })
+  expect(screen.queryByRole('status', { name: 'Your seats' })).toBeNull()
+  data.order = { ...previous, reference: 'new-order', status: 'DRAFT', checkout_step: 'SEATS', selected_seats: [] }
+  act(() => broadcast())
+  await screen.findByText('The seller is preparing your order.')
+  expect(screen.queryByRole('status', { name: 'Your seats' })).toBeNull()
+  expectNoSeatMap()
+})
+
+it('uses only the current order selection, with configured labels and no map or seat controls', async () => {
+  data.tables = [{ table_number: 1, display_label: 'Garden', seats: [
+    { label: 'A', display_number: 7, status: 'LOCKED' },
+    { label: 'B', display_number: 8, status: 'UNAVAILABLE', current_order: true },
+  ] }]
+  data.order!.allocations = [{ table_number: 9, label: 'D', expires_at: new Date().toISOString() }]
+  render(<App />)
+  const summary = await screen.findByRole('status', { name: 'Your seats' })
+  expect(summary.textContent).toBe('Your seats:Table Garden · Seat 7')
+  expect(summary.querySelector('button,input,select')).toBeNull()
+  data.tables[0].seats[1].status = 'AVAILABLE'
+  act(() => broadcast())
+  await waitFor(() => expect(api.readDisplay).toHaveBeenCalledTimes(2))
+  expect(summary.textContent).toBe('Your seats:Table Garden · Seat 7')
+  expectNoSeatMap()
 })
 
 it('discards an in-flight snapshot invalidated by a newer order update', async () => {

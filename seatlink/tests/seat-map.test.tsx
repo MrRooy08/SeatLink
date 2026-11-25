@@ -43,7 +43,7 @@ it('keeps partial table labels in the same compass position and supports Space t
   render(<SeatMap tables={tables} selectedIds={['only-seat']} onToggle={toggle} />)
   const partial = screen.getByRole('button', { name: 'Table H · Seat 3' })
   expect(partial.getAttribute('aria-pressed')).toBe('true')
-  expect(partial.parentElement?.className).toMatch(/south/)
+  expect(partial.parentElement?.parentElement?.className).toMatch(/south/)
   partial.focus()
   await user.keyboard(' ')
   expect(toggle).toHaveBeenCalledWith('only-seat')

@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client'
 import '../src/index.css'
 import SeatMap from '../src/features/seats/SeatMap'
 import type { MapTable } from '../src/features/seats/SeatMap'
+import OrderSeatSummary from '../src/features/display/OrderSeatSummary'
+import '../src/features/display/CustomerDisplay.css'
 import styles from './SeatMapReview.module.css'
 
 const tables: MapTable[] = Array.from({ length: 8 }, (_, index) => ({ id: `review-table-${index}`, table_number: index + 1,
@@ -24,7 +26,15 @@ export default function Review() {
     <div className={styles.comparison}>
       <section><h2>Owner · Interactive</h2><SeatMap tables={tables} ownerNow={now} selectedIds={selected} onToggle={id => setSelected(previous => previous.includes(id)
         ? previous.filter(seat=>seat!==id) : previous.length<4 ? [...previous,id] : previous)} /></section>
-      <section><h2>Customer · Read only</h2><SeatMap tables={tables} selectedIds={selected} /></section>
+      <section><h2>Customer · Read only</h2><div className="display-current"><h3>Your order</h3>
+        <p>1 × Iced tea</p><p className="display-total">Total SGD 1.80</p>
+        <OrderSeatSummary tables={tables} order={{ reference: 'review', status: 'DRAFT', checkout_step: 'SEATS',
+          total_minor: 180, currency: 'SGD', items: [{ name: 'Iced tea', quantity: 1, unit_price_minor: 180 }],
+          session_expires_at: null, payment_status: null, qr_expires_at: null, qr_text: null, allocations: [],
+          selected_seats: tables.flatMap(table => table.seats.filter(seat => selected.includes(seat.id!))
+            .map(seat => ({ table_number: table.table_number, label: seat.label }))),
+        }} /><p>The seller is preparing your order.</p>
+      </div></section>
     </div>
   </main>
 }

@@ -9,8 +9,8 @@ import './PaymentStep.css'
 import SeatMap from '../seats/SeatMap'
 import { currentOrderSeatIds } from '../seats/order-seat-map'
 
-export default function PaymentStep({ client, snapshot, now, disabled, refresh, cancel, skipSeats, openSettings }: {
-  client: SeatLinkClient; snapshot: SalesSnapshot; now: number; disabled: boolean; refresh: () => Promise<void>; cancel: () => void; skipSeats: () => void; openSettings?: () => void
+export default function PaymentStep({ client, snapshot, now, disabled, refresh, cancel, openSettings }: {
+  client: SeatLinkClient; snapshot: SalesSnapshot; now: number; disabled: boolean; refresh: () => Promise<void>; cancel: () => void; openSettings?: () => void
 }) {
   const payment = usePayment(client, snapshot, now, disabled, refresh)
   const { attempt, busy, expired, receivedMinor, unresolved } = payment
@@ -65,7 +65,6 @@ export default function PaymentStep({ client, snapshot, now, disabled, refresh, 
     {order.selected_seat_ids.length > 0 && <section aria-label="This order’s reserved seats">
       <h3>Reserved seats</h3><SeatMap tables={snapshot.tables} selectedIds={currentOrderSeatIds(snapshot)} ownerNow={now} stale={disabled} />
 
-      <button type="button" disabled={busy} onClick={skipSeats}>Continue without seats</button>
     </section>}
     <button type="button" className="cancel-reservation" disabled={payment.working || disabled} onClick={cancel}>Cancel and start again</button>
   </section>
